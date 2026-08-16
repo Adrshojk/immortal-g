@@ -90,27 +90,40 @@ export class Player {
     else if (powerScale === 10000) currentJumpForce = -2400;
     else if (powerScale === 999999) currentJumpForce = -5000;
 
-    const groundLandedYBefore = arena.checkGroundLanding(this.x, this.y, this.width, this.height, this.vy);
+    let groundLandedYBefore = arena.checkGroundLanding(this.x, this.y, this.width, this.height, this.vy);
+    let groundLandedY = groundLandedYBefore;
 
-    if (groundLandedYBefore !== null && this.vy >= 500) {
-      // High speed landing impact -> apply force to ground segment below player
-      const leftX = this.x - this.width / 2;
-      const rightX = this.x + this.width / 2;
-      const leftIdx = Math.floor(leftX / 400);
-      const rightIdx = Math.floor(rightX / 400);
-      
-      const impactForce = this.vy * (powerScale / 100); 
-      const tier = powerScale >= 999999 ? 5 : (powerScale >= 10000 ? 4 : (powerScale >= 1000 ? 3 : 2));
+    // Support interior house floor limits
+    if (this.y < -2000) {
+      const interiorFloorY = -3500;
+      const bottomY = this.y + this.height / 2;
+      if (this.vy >= 0 && bottomY >= interiorFloorY - 8 && bottomY <= interiorFloorY + 15) {
+        groundLandedYBefore = interiorFloorY;
+        groundLandedY = interiorFloorY;
+      } else {
+        groundLandedYBefore = null;
+        groundLandedY = null;
+      }
+    } else {
+      if (groundLandedYBefore !== null && this.vy >= 500) {
+        // High speed landing impact -> apply force to ground segment below player
+        const leftX = this.x - this.width / 2;
+        const rightX = this.x + this.width / 2;
+        const leftIdx = Math.floor(leftX / 400);
+        const rightIdx = Math.floor(rightX / 400);
+        
+        const impactForce = this.vy * (powerScale / 100); 
+        const tier = powerScale >= 999999 ? 5 : (powerScale >= 10000 ? 4 : (powerScale >= 1000 ? 3 : 2));
 
-      for (let i = Math.max(0, leftIdx); i <= Math.min(15, rightIdx); i++) {
-        const seg = arena.objects.find(obj => obj.id === `ground_${i}`);
-        if (seg && seg.state !== DestructionState.DESTROYED) {
-          DestructionSystem.applyForce(seg, impactForce, tier);
+        for (let i = Math.max(0, leftIdx); i <= Math.min(15, rightIdx); i++) {
+          const seg = arena.objects.find(obj => obj.id === `ground_${i}`);
+          if (seg && seg.state !== DestructionState.DESTROYED) {
+            DestructionSystem.applyForce(seg, impactForce, tier);
+          }
         }
       }
+      groundLandedY = arena.checkGroundLanding(this.x, this.y, this.width, this.height, this.vy);
     }
-
-    const groundLandedY = arena.checkGroundLanding(this.x, this.y, this.width, this.height, this.vy);
 
     if (landedY !== null) {
       this.vy = 0;
@@ -137,6 +150,12 @@ export class Player {
       } else {
         this.vy += this.gravity * dt;
       }
+    }
+
+    // Constrain position inside room if in interior
+    if (this.y < -2000) {
+      if (this.x < 1720) this.x = 1720;
+      if (this.x > 2280) this.x = 2280;
     }
 
     // Update positions
