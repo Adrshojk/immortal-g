@@ -291,5 +291,22 @@ describe('IMMORTAL Core Systems', () => {
       // 2.0s+ hold -> 999999 power (Infinity)
       expect(powerSystem.calculatePower(2.5)).toBe(999999);
     });
+
+    it('should damage/destroy ground segment when player lands with high velocity', () => {
+      const arena = new TestArena();
+      const player = new Player();
+      
+      // Position player just above ground, falling fast
+      player.y = 460;
+      player.vy = 800; // Fast fall velocity
+      
+      const ground0 = arena.objects.find(obj => obj.id === 'ground_0')!;
+      expect(ground0.state).toBe(DestructionState.INTACT);
+
+      // Perform update with Infinity power to ensure breaking ground
+      player.update(0.016, { left: false, right: false, jump: false }, 999999, arena);
+      expect(ground0.state).toBe(DestructionState.DESTROYED);
+      expect(player.y).toBeGreaterThan(468); // should have fallen through
+    });
   });
 });

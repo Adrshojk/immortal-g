@@ -1,4 +1,5 @@
 import { TestArena } from '../world/TestArena';
+import { DestructionSystem, DestructionState } from '../systems/DestructionSystem';
 
 export interface PlayerState {
   x: number;
@@ -73,6 +74,26 @@ export class Player {
     else if (powerScale === 1000) currentJumpForce = -1200;
     else if (powerScale === 10000) currentJumpForce = -2400;
     else if (powerScale === 999999) currentJumpForce = -5000;
+
+    const groundLandedYBefore = arena.checkGroundLanding(this.x, this.y, this.width, this.height, this.vy);
+
+    if (groundLandedYBefore !== null && this.vy >= 500) {
+      // High speed landing impact -> apply force to ground segment below player
+      const leftX = this.x - this.width / 2;
+      const rightX = this.x + this.width / 2;
+      const leftIdx = Math.floor(leftX / 400);
+      const rightIdx = Math.floor(rightX / 400);
+      
+      const impactForce = this.vy * (powerScale / 100); 
+      const tier = powerScale >= 999999 ? 5 : (powerScale >= 10000 ? 4 : (powerScale >= 1000 ? 3 : 2));
+
+      for (let i = Math.max(0, leftIdx); i <= Math.min(7, rightIdx); i++) {
+        const seg = arena.objects.find(obj => obj.id === `ground_${i}`);
+        if (seg && seg.state !== DestructionState.DESTROYED) {
+          DestructionSystem.applyForce(seg, impactForce, tier);
+        }
+      }
+    }
 
     const groundLandedY = arena.checkGroundLanding(this.x, this.y, this.width, this.height, this.vy);
 
