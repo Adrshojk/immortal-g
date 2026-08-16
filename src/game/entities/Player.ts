@@ -98,7 +98,7 @@ export class Player {
       const impactForce = this.vy * (powerScale / 100); 
       const tier = powerScale >= 999999 ? 5 : (powerScale >= 10000 ? 4 : (powerScale >= 1000 ? 3 : 2));
 
-      for (let i = Math.max(0, leftIdx); i <= Math.min(7, rightIdx); i++) {
+      for (let i = Math.max(0, leftIdx); i <= Math.min(15, rightIdx); i++) {
         const seg = arena.objects.find(obj => obj.id === `ground_${i}`);
         if (seg && seg.state !== DestructionState.DESTROYED) {
           DestructionSystem.applyForce(seg, impactForce, tier);
@@ -149,7 +149,7 @@ export class Player {
 
     // Simple bounds collision
     if (this.x < 50) this.x = 50;
-    if (this.x > 3150) this.x = 3150;
+    if (this.x > 6350) this.x = 6350;
   }
 
   public punch(): boolean {

@@ -113,8 +113,8 @@ export class MainScene extends Phaser.Scene {
     }
 
     // Set world size matching simulator (allows scrolling high into the sky)
-    this.cameras.main.setBounds(0, -5000, 3200, 5600);
-    this.physics.world.setBounds(0, -5000, 3200, 5600);
+    this.cameras.main.setBounds(0, -5000, 6400, 5600);
+    this.physics.world.setBounds(0, -5000, 6400, 5600);
 
     // Create background sky/terrain grid
     this.createBackground();
@@ -208,15 +208,15 @@ export class MainScene extends Phaser.Scene {
       const b = Math.round(30 + t * 30);
       const color = (r << 16) | (g << 8) | b;
       skyGfx.fillStyle(color, 1);
-      skyGfx.fillRect(0, -5000 + (skyH / stripes) * i, 3200, skyH / stripes + 1);
+      skyGfx.fillRect(0, -5000 + (skyH / stripes) * i, 6400, skyH / stripes + 1);
     }
     skyGfx.setScrollFactor(1, 1);
 
     // --- Parallax layer 1: Distant stars (moves slowest) ---
     const starLayer = this.add.graphics();
     starLayer.setScrollFactor(0.15, 0.15);
-    for (let i = 0; i < 120; i++) {
-      const sx = Math.random() * 4000 - 400;
+    for (let i = 0; i < 200; i++) {
+      const sx = Math.random() * 7200 - 400;
       const sy = Math.random() * 3000 - 2000;
       const size = 0.5 + Math.random() * 1.5;
       const brightness = 0.3 + Math.random() * 0.7;
@@ -235,7 +235,10 @@ export class MainScene extends Phaser.Scene {
       { x: 600, y: 220 }, { x: 900, y: 340 }, { x: 1200, y: 260 },
       { x: 1500, y: 350 }, { x: 1800, y: 200 }, { x: 2100, y: 320 },
       { x: 2400, y: 250 }, { x: 2700, y: 310 }, { x: 3000, y: 280 },
-      { x: 3400, y: 350 }, { x: 3600, y: 550 }
+      { x: 3300, y: 350 }, { x: 3600, y: 230 }, { x: 3900, y: 310 },
+      { x: 4200, y: 190 }, { x: 4500, y: 290 }, { x: 4800, y: 240 },
+      { x: 5100, y: 330 }, { x: 5400, y: 210 }, { x: 5700, y: 300 },
+      { x: 6000, y: 260 }, { x: 6300, y: 340 }, { x: 6600, y: 550 }
     ];
     mtGfx.beginPath();
     mtGfx.moveTo(mtPoints[0].x, mtPoints[0].y);
@@ -252,17 +255,17 @@ export class MainScene extends Phaser.Scene {
     hillGfx.fillStyle(0x1e3050, 0.7);
     hillGfx.beginPath();
     hillGfx.moveTo(-200, 550);
-    for (let x = -200; x <= 3600; x += 80) {
+    for (let x = -200; x <= 6800; x += 80) {
       const h = 420 + Math.sin(x * 0.004) * 50 + Math.sin(x * 0.011) * 25;
       hillGfx.lineTo(x, h);
     }
-    hillGfx.lineTo(3600, 550);
+    hillGfx.lineTo(6800, 550);
     hillGfx.closePath();
     hillGfx.fillPath();
     this.parallaxLayers.push(hillGfx);
 
     // --- Ground segments with 3D top-surface highlight ---
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 16; i++) {
       const id = `ground_${i}`;
       const layout = TestArena.getObjectLayout(id);
       // Main ground body
@@ -318,6 +321,13 @@ export class MainScene extends Phaser.Scene {
     if (id.startsWith('house')) baseColor = 0x4682b4; // Steel Blue
     if (id.startsWith('wall')) baseColor = 0x808080; // Gray
     if (id.startsWith('tree')) baseColor = 0x228b22; // Forest Green
+    if (id.startsWith('boulder')) baseColor = 0x6b7b8d; // Slate
+    if (id.startsWith('fort_wall') || id.startsWith('fort_gate')) baseColor = 0x5a5a6e; // Dark Stone
+    if (id.startsWith('tower')) baseColor = 0x4a4a5e; // Dark Fortress
+    if (id.startsWith('barrel')) baseColor = 0x8b6914; // Dark Gold
+    if (id.startsWith('pillar')) baseColor = 0x9ca3af; // Light Stone
+    if (id.startsWith('ruin_wall') || id.startsWith('ruin')) baseColor = 0x7a8070; // Mossy Stone
+    if (id.startsWith('statue')) baseColor = 0xb0b8c8; // Pale Marble
 
     // Decay colors depending on state
     switch (state) {
@@ -783,7 +793,7 @@ export class MainScene extends Phaser.Scene {
     });
 
     // Ground Floor Segments Sync
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 16; i++) {
       const id = `ground_${i}`;
       const rect = this.groundSprites.get(id);
       const obj = this.arena.objects.find(o => o.id === id);
@@ -982,7 +992,7 @@ export class MainScene extends Phaser.Scene {
     });
 
     // Ground Segment Labels
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 16; i++) {
       const id = `ground_${i}`;
       const layout = TestArena.getObjectLayout(id);
       const lbl = this.add.text(layout.x, 480, `GROUND SEG ${i + 1}`, {
