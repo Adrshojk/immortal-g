@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IMMORTAL - 2D Prototype</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #0d0d13;
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+    #game-container {
+      border: 4px solid #1a1a2e;
+      border-radius: 8px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    }
+    h1 {
+      margin: 0 0 10px 0;
+      font-size: 28px;
+      letter-spacing: 2px;
+      color: #00ffcc;
+      text-transform: uppercase;
+    }
+    p {
+      margin: 5px 0 15px 0;
+      color: #888899;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <h1>IMMORTAL</h1>
+  <p>Proving control of absolute power in a fragile world.</p>
+  <div id="game-container"></div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
