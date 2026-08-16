@@ -220,16 +220,35 @@ describe('IMMORTAL Core Systems', () => {
       const arena = new TestArena();
       
       // Move right at power 100
-      player.update(0.016, { left: false, right: true, jump: false }, 100, arena);
+      player.update(0, { left: false, right: true, jump: false }, 100, arena);
       expect(player.vx).toBe(250);
 
       // Move left at power 10
-      player.update(0.016, { left: true, right: false, jump: false }, 10, arena);
+      player.update(0, { left: true, right: false, jump: false }, 10, arena);
       expect(player.vx).toBe(-180);
 
       // Move right at power 999999 (Infinity)
-      player.update(0.016, { left: false, right: true, jump: false }, 999999, arena);
+      player.update(0, { left: false, right: true, jump: false }, 999999, arena);
       expect(player.vx).toBe(1500);
+    });
+
+    it('should accelerate player movement velocity when holding direction keys over time', () => {
+      const player = new Player();
+      const arena = new TestArena();
+      player.y = 468;
+      
+      // Initially, holding right for 0s yields base speed 250
+      player.update(0, { left: false, right: true, jump: false }, 100, arena);
+      expect(player.vx).toBe(250);
+
+      // Holding right for 1s accelerates player speed
+      player.update(1.0, { left: false, right: true, jump: false }, 100, arena);
+      expect(Math.abs(player.vx)).toBeGreaterThan(500); // Accelerated speed
+
+      // Releasing direction keys resets acceleration
+      player.update(0, { left: false, right: false, jump: false }, 100, arena);
+      player.update(0, { left: false, right: true, jump: false }, 100, arena);
+      expect(player.vx).toBe(250); // back to base speed
     });
 
     it('should break ground segment under high force and cause player to fall through', () => {

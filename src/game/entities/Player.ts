@@ -25,6 +25,7 @@ export class Player {
   private speed: number = 250;
   private jumpForce: number = -600;
   private gravity: number = 1200;
+  private moveHoldTime: number = 0;
 
   public update(dt: number, keys: { left: boolean; right: boolean; jump: boolean }, powerScale: number, arena: TestArena): void {
     if (this.punchCooldown > 0) {
@@ -33,14 +34,22 @@ export class Player {
       this.isPunching = false;
     }
 
-    // Scale horizontal speed with power scale
-    let currentSpeed = this.speed;
-    if (powerScale === 1) currentSpeed = 100;
-    else if (powerScale === 10) currentSpeed = 180;
-    else if (powerScale === 100) currentSpeed = 250;
-    else if (powerScale === 1000) currentSpeed = 450;
-    else if (powerScale === 10000) currentSpeed = 800;
-    else if (powerScale === 999999) currentSpeed = 1500;
+    // Track movement key hold duration to apply uncontrollable acceleration
+    if (keys.left || keys.right) {
+      this.moveHoldTime += dt;
+    } else {
+      this.moveHoldTime = 0;
+    }
+
+    const accelMultiplier = 1.0 + Math.pow(this.moveHoldTime, 1.8) * 3.5;
+    let currentSpeed = this.speed * accelMultiplier;
+    
+    if (powerScale === 1) currentSpeed = 100 * accelMultiplier;
+    else if (powerScale === 10) currentSpeed = 180 * accelMultiplier;
+    else if (powerScale === 100) currentSpeed = 250 * accelMultiplier;
+    else if (powerScale === 1000) currentSpeed = 450 * accelMultiplier;
+    else if (powerScale === 10000) currentSpeed = 800 * accelMultiplier;
+    else if (powerScale === 999999) currentSpeed = 1500 * accelMultiplier;
 
     // Horizontal Movement
     if (keys.left) {
