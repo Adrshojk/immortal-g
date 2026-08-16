@@ -308,5 +308,23 @@ describe('IMMORTAL Core Systems', () => {
       expect(ground0.state).toBe(DestructionState.DESTROYED);
       expect(player.y).toBeGreaterThan(468); // should have fallen through
     });
+
+    it('should constrain player position and support Y = -3500 floor inside the house interior', () => {
+      const arena = new TestArena();
+      const player = new Player();
+      
+      // Teleport player inside house (Y = -3532, X = 1600 (beyond left wall boundary))
+      player.x = 1600;
+      player.y = -3520;
+      player.vy = 100; // falling inside house
+      
+      // Update physics loop
+      player.update(0.016, { left: false, right: false, jump: false }, 100, arena);
+      
+      // Verify player is constrained to left wall border (1720) and lands on Y = -3500 floor
+      expect(player.x).toBe(1720);
+      expect(player.y).toBe(-3532); // Y floor landing height (-3500 floor - 32 half height)
+      expect(player.vy).toBe(0); // landed
+    });
   });
 });

@@ -30,6 +30,7 @@ export class MainScene extends Phaser.Scene {
   private enemyLabel!: Phaser.GameObjects.Text;
   private npcLabel!: Phaser.GameObjects.Text;
   private platformLabels: Phaser.GameObjects.Text[] = [];
+  private platformSprites: Phaser.GameObjects.Rectangle[] = [];
   private groundLabels: Map<string, Phaser.GameObjects.Text> = new Map();
 
   // Parallax & 3D depth layers
@@ -68,6 +69,16 @@ export class MainScene extends Phaser.Scene {
   private debugText!: Phaser.GameObjects.Text;
   private debugVisible: boolean = false;
   private rewindOverlay!: Phaser.GameObjects.Rectangle;
+
+  // House Interior & Dialogue Systems
+  private currentLocation: 'exterior' | 'interior' = 'exterior';
+  private interactPrompt!: Phaser.GameObjects.Text;
+  private dialogueContainer!: Phaser.GameObjects.Container;
+  private dialogueText!: Phaser.GameObjects.Text;
+  private dialogueLines: string[] = [];
+  private currentDialogueIdx: number = 0;
+  private isDialogueActive: boolean = false;
+  private interiorOverlayGraphics!: Phaser.GameObjects.Graphics;
 
   // Event Log for Debug overlay
   private eventLog: string[] = [];
@@ -184,8 +195,12 @@ export class MainScene extends Phaser.Scene {
         this.soundEffect(200, 0.1);
       });
       this.keys.E.on('down', () => {
-        this.powerSystem.increasePower();
-        this.soundEffect(400, 0.1);
+        if (this.isDialogueActive || this.isNearInteractable()) {
+          this.handleInteraction();
+        } else {
+          this.powerSystem.increasePower();
+          this.soundEffect(400, 0.1);
+        }
       });
       this.keys.TAB.on('down', () => {
         this.debugVisible = !this.debugVisible;
@@ -297,12 +312,14 @@ export class MainScene extends Phaser.Scene {
   private createPlatforms(): void {
     TestArena.PLATFORMS.forEach(plat => {
       // Bottom shadow for 3D depth
-      this.add.rectangle(plat.x + 3, plat.y + 4, plat.w, plat.h, 0x000000, 0.3).setOrigin(0.5);
+      const shadow = this.add.rectangle(plat.x + 3, plat.y + 4, plat.w, plat.h, 0x000000, 0.3).setOrigin(0.5);
       // Main body
       const rect = this.add.rectangle(plat.x, plat.y, plat.w, plat.h, 0x475569).setOrigin(0.5);
       rect.setStrokeStyle(2, 0x64748b);
       // Top surface highlight
-      this.add.rectangle(plat.x, plat.y - plat.h / 2 + 3, plat.w - 4, 5, 0x6b8aad, 0.6).setOrigin(0.5);
+      const highlight = this.add.rectangle(plat.x, plat.y - plat.h / 2 + 3, plat.w - 4, 5, 0x6b8aad, 0.6).setOrigin(0.5);
+      
+      this.platformSprites.push(shadow, rect, highlight);
     });
   }
 
@@ -417,6 +434,38 @@ export class MainScene extends Phaser.Scene {
       lineSpacing: 4
     });
     this.debugOverlay.add([debugBg, this.debugText]);
+
+    // Initialize interact prompt overlay in world space
+    this.interactPrompt = this.add.text(0, 0, '[E] Enter House', {
+      fontSize: '14px',
+      color: '#00ffcc',
+      backgroundColor: '#000000bd',
+      fontStyle: 'bold',
+      padding: { x: 6, y: 3 }
+    }).setOrigin(0.5).setVisible(false).setDepth(200);
+
+    // Initialize Dialogue container UI
+    this.dialogueContainer = this.add.container(0, 0).setScrollFactor(0).setVisible(false).setDepth(300);
+    const dialogBg = this.add.rectangle(400, 520, 760, 110, 0x000000, 0.85).setOrigin(0.5);
+    dialogBg.setStrokeStyle(2, 0x00ffcc);
+    const speakerLabel = this.add.text(-340, -40, 'VILLAGER', {
+      fontSize: '16px',
+      color: '#00ffcc',
+      fontStyle: 'bold'
+    });
+    this.dialogueText = this.add.text(-340, -10, '', {
+      fontSize: '14px',
+      color: '#ffffff',
+      wordWrap: { width: 680 }
+    });
+    const promptText = this.add.text(350, 40, '[E] Next', {
+      fontSize: '11px',
+      color: '#888888'
+    }).setOrigin(1, 1);
+    this.dialogueContainer.add([dialogBg, speakerLabel, this.dialogueText, promptText]);
+
+    // Graphics object for drawing interior walls and cozy background elements
+    this.interiorOverlayGraphics = this.add.graphics().setDepth(2);
   }
 
   private createRewindOverlay(): void {
@@ -444,10 +493,10 @@ export class MainScene extends Phaser.Scene {
     const dt = delta / 1000;
 
     // Read Key States
-    const left = this.keys && (this.keys.A.isDown || this.keys.LEFT.isDown);
-    const right = this.keys && (this.keys.D.isDown || this.keys.RIGHT.isDown);
-    const jump = this.keys && (this.keys.SPACE.isDown || this.keys.W.isDown || this.keys.UP.isDown);
-    const down = this.keys && (this.keys.S.isDown || this.keys.DOWN.isDown);
+    const left = !this.isDialogueActive && this.keys && (this.keys.A.isDown || this.keys.LEFT.isDown);
+    const right = !this.isDialogueActive && this.keys && (this.keys.D.isDown || this.keys.RIGHT.isDown);
+    const jump = !this.isDialogueActive && this.keys && (this.keys.SPACE.isDown || this.keys.W.isDown || this.keys.UP.isDown);
+    const down = !this.isDialogueActive && this.keys && (this.keys.S.isDown || this.keys.DOWN.isDown);
     const rewind = this.keys && this.keys.R.isDown;
     const hasHistory = this.timeSystem.getHistoryLength() > 0;
 
@@ -524,7 +573,10 @@ export class MainScene extends Phaser.Scene {
 
       // Tick System clock
       this.timeSystem.tick();
+      this.updateInteractPrompt();
     }
+
+    this.drawInteriorGraphics();
 
     // Synchronize Display sprites with simulation data
     this.syncDisplay();
@@ -878,19 +930,54 @@ export class MainScene extends Phaser.Scene {
       this.npcLabel.setPosition(this.npc.x, this.npc.y - 40);
     }
 
+    const showExterior = this.currentLocation === 'exterior';
+    
+    // Hide/show other entities
+    this.enemySprite.setVisible(showExterior);
+    this.enemyLabel.setVisible(showExterior);
+    this.npcSprite.setVisible(showExterior || this.currentLocation === 'interior');
+    this.npcLabel.setVisible(showExterior || this.currentLocation === 'interior');
+    this.playerShadow.setVisible(showExterior); // Hide shadow inside house
+
+    this.platformSprites.forEach(sprite => {
+      sprite.setVisible(showExterior);
+    });
+
+    this.groundSprites.forEach(rect => {
+      rect.setVisible(showExterior);
+    });
+
     // Ground Labels Visibility
     for (let i = 0; i < 8; i++) {
       const id = `ground_${i}`;
       const lbl = this.groundLabels.get(id);
       const obj = this.arena.objects.find(o => o.id === id);
       if (lbl && obj) {
-        if (obj.state === DestructionState.DESTROYED) {
+        if (obj.state === DestructionState.DESTROYED || !showExterior) {
           lbl.setVisible(false);
         } else {
           lbl.setVisible(true);
         }
       }
     }
+
+    // Hide/show platform labels
+    this.platformLabels.forEach(lbl => {
+      lbl.setVisible(showExterior);
+    });
+
+    // Hide/show external destructible sprites
+    this.arena.objects.forEach(obj => {
+      if (obj.id.startsWith('ground_')) return;
+      const container = this.arenaSprites.get(obj.id);
+      if (container) {
+        if (obj.state === DestructionState.DESTROYED || !showExterior) {
+          container.setVisible(false);
+        } else {
+          container.setVisible(true);
+        }
+      }
+    });
   }
 
   private restoreSimulationState(snapshot: any): void {
@@ -1109,5 +1196,173 @@ export class MainScene extends Phaser.Scene {
         }
       }
     });
+  }
+
+  private isNearInteractable(): boolean {
+    if (this.currentLocation === 'exterior') {
+      const distToHouse = Phaser.Math.Distance.Between(this.player.x, this.player.y, 1200, 468);
+      if (distToHouse < 100) return true;
+    } else {
+      const distToExit = Phaser.Math.Distance.Between(this.player.x, this.player.y, 1800, -3500);
+      if (distToExit < 100) return true;
+      
+      const distToNpc = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.npc.x, this.npc.y);
+      if (distToNpc < 100) return true;
+    }
+    return false;
+  }
+
+  private handleInteraction(): void {
+    if (this.isDialogueActive) {
+      this.currentDialogueIdx++;
+      if (this.currentDialogueIdx < this.dialogueLines.length) {
+        this.dialogueText.setText(this.dialogueLines[this.currentDialogueIdx]);
+        this.soundEffect(300, 0.05);
+      } else {
+        this.isDialogueActive = false;
+        this.dialogueContainer.setVisible(false);
+        this.soundEffect(200, 0.1);
+      }
+      return;
+    }
+
+    if (this.currentLocation === 'exterior') {
+      const distToHouse = Phaser.Math.Distance.Between(this.player.x, this.player.y, 1200, 468);
+      if (distToHouse < 100) {
+        this.soundEffect(350, 0.2);
+        this.cameras.main.fade(200, 0, 0, 0, false, (_cam: any, progress: number) => {
+          if (progress === 1) {
+            this.currentLocation = 'interior';
+            
+            this.player.x = 1850;
+            this.player.y = -3532;
+            this.player.vy = 0;
+            this.player.vx = 0;
+            
+            this.npc.x = 2150;
+            this.npc.y = -3532;
+            this.npc.vx = 0;
+            this.npc.vy = 0;
+            
+            this.cameras.main.fadeIn(200);
+          }
+        });
+      }
+    } else {
+      const distToExit = Phaser.Math.Distance.Between(this.player.x, this.player.y, 1800, -3500);
+      if (distToExit < 100) {
+        this.soundEffect(350, 0.2);
+        this.cameras.main.fade(200, 0, 0, 0, false, (_cam: any, progress: number) => {
+          if (progress === 1) {
+            this.currentLocation = 'exterior';
+            
+            this.player.x = 1200;
+            this.player.y = 468;
+            this.player.vy = 0;
+            this.player.vx = 0;
+            
+            this.npc.x = 600;
+            this.npc.y = 400;
+            this.npc.vx = 0;
+            this.npc.vy = 0;
+            
+            this.cameras.main.fadeIn(200);
+          }
+        });
+        return;
+      }
+
+      const distToNpc = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.npc.x, this.npc.y);
+      if (distToNpc < 100) {
+        this.isDialogueActive = true;
+        this.dialogueLines = [
+          "Kail... I saw you tap the F key. The entire mountain collapsed!",
+          "You must learn to FOCUS (hold F key) to restrain your power.",
+          "Otherwise, you will trigger 100% COLLATERAL DAMAGE and destroy our village.",
+          "Remember, you can always rewind time by holding R if you make a mistake."
+        ];
+        this.currentDialogueIdx = 0;
+        this.dialogueText.setText(this.dialogueLines[0]);
+        this.dialogueContainer.setVisible(true);
+        this.soundEffect(300, 0.1);
+      }
+    }
+  }
+
+  private updateInteractPrompt(): void {
+    this.interactPrompt.setVisible(false);
+    
+    if (this.isDialogueActive) return;
+
+    if (this.currentLocation === 'exterior') {
+      const distToHouse = Phaser.Math.Distance.Between(this.player.x, this.player.y, 1200, 468);
+      if (distToHouse < 100) {
+        this.interactPrompt.setPosition(1200, 430);
+        this.interactPrompt.setText('[E] Enter House');
+        this.interactPrompt.setVisible(true);
+      }
+    } else {
+      const distToExit = Phaser.Math.Distance.Between(this.player.x, this.player.y, 1800, -3500);
+      if (distToExit < 100) {
+        this.interactPrompt.setPosition(1800, -3570);
+        this.interactPrompt.setText('[E] Exit House');
+        this.interactPrompt.setVisible(true);
+      } else {
+        const distToNpc = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.npc.x, this.npc.y);
+        if (distToNpc < 100) {
+          this.interactPrompt.setPosition(this.npc.x, this.npc.y - 50);
+          this.interactPrompt.setText('[E] Talk to Villager');
+          this.interactPrompt.setVisible(true);
+        }
+      }
+    }
+  }
+
+  private drawInteriorGraphics(): void {
+    this.interiorOverlayGraphics.clear();
+    if (this.currentLocation !== 'interior') return;
+
+    // Draw solid dark background color overlay to hide the outer sky
+    this.interiorOverlayGraphics.fillStyle(0x1a0f0a, 1.0); // Warm dark wood color
+    this.interiorOverlayGraphics.fillRect(this.cameras.main.worldView.x - 100, this.cameras.main.worldView.y - 100, this.cameras.main.worldView.width + 200, this.cameras.main.worldView.height + 200);
+
+    // Draw Cozy Room bounds (Room X: 1700 to 2300, Floor Y: -3500, Ceiling Y: -3800)
+    this.interiorOverlayGraphics.fillStyle(0x2d1a10, 1.0); // Brick red/brown wall
+    this.interiorOverlayGraphics.fillRect(1700, -3800, 600, 300);
+    
+    this.interiorOverlayGraphics.fillStyle(0x5c3a21, 1.0); // Wooden floor planks
+    this.interiorOverlayGraphics.fillRect(1700, -3500, 600, 20);
+
+    // Stone Pillar Borders (Left/Right Walls)
+    this.interiorOverlayGraphics.fillStyle(0x7f8c8d, 1.0);
+    this.interiorOverlayGraphics.fillRect(1680, -3800, 20, 320);
+    this.interiorOverlayGraphics.fillRect(2300, -3800, 20, 320);
+
+    // Draw Exit Door (at X: 1800)
+    this.interiorOverlayGraphics.fillStyle(0x8e44ad, 1.0); // Purple/wooden door frame
+    this.interiorOverlayGraphics.fillRect(1770, -3500, 60, 80);
+    this.interiorOverlayGraphics.fillStyle(0xd35400, 1.0); // Orange inner door
+    this.interiorOverlayGraphics.fillRect(1775, -3495, 50, 75);
+
+    // Draw Cozy Glowing Fireplace (at X: 2100)
+    this.interiorOverlayGraphics.fillStyle(0x34495e, 1.0); // Fireplace stones
+    this.interiorOverlayGraphics.fillRect(2070, -3500, 60, 60);
+    this.interiorOverlayGraphics.fillStyle(0xe74c3c, 1.0); // Glowing embers (Red/Orange)
+    this.interiorOverlayGraphics.fillRect(2080, -3480, 40, 40);
+
+    // Draw Fireplace Fire Particles
+    if (this.time.now % 100 < 30) {
+      const fx = 2080 + Math.random() * 40;
+      const fy = -3480 - Math.random() * 20;
+      const size = 3 + Math.random() * 4;
+      const spark = this.add.rectangle(fx, fy, size, size, 0xf1c40f); // yellow flame sparks
+      this.time.delayedCall(200, () => spark.destroy());
+    }
+
+    // Draw Wooden Table (at X: 1980)
+    this.interiorOverlayGraphics.fillStyle(0xa0522d, 1.0);
+    this.interiorOverlayGraphics.fillRect(1950, -3470, 60, 8); // Table top
+    this.interiorOverlayGraphics.fillRect(1960, -3462, 6, 12);  // Legs
+    this.interiorOverlayGraphics.fillRect(1994, -3462, 6, 12);
   }
 }
