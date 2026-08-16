@@ -28,6 +28,11 @@ export class Player {
   private gravity: number = 1200;
   private moveHoldTime: number = 0;
 
+  // Smooth movement
+  private targetVx: number = 0;
+  private accelRate: number = 12;   // How fast we reach target speed
+  private decelRate: number = 8;    // How fast we stop (friction)
+
   public update(dt: number, keys: { left: boolean; right: boolean; jump: boolean; down?: boolean }, powerScale: number, arena: TestArena): void {
     if (this.punchCooldown > 0) {
       this.punchCooldown -= dt;
@@ -52,16 +57,22 @@ export class Player {
     else if (powerScale === 10000) currentSpeed = 800 * accelMultiplier;
     else if (powerScale === 999999) currentSpeed = 1500 * accelMultiplier;
 
-    // Horizontal Movement
+    // Horizontal Movement (smooth acceleration/deceleration)
     if (keys.left) {
-      this.vx = -currentSpeed;
+      this.targetVx = -currentSpeed;
       this.facingDir = -1;
     } else if (keys.right) {
-      this.vx = currentSpeed;
+      this.targetVx = currentSpeed;
       this.facingDir = 1;
     } else {
-      this.vx = 0;
+      this.targetVx = 0;
     }
+
+    // Lerp velocity toward target for smooth feel
+    const rate = this.targetVx !== 0 ? this.accelRate : this.decelRate;
+    this.vx += (this.targetVx - this.vx) * Math.min(1, rate * dt);
+    // Kill tiny residual drift
+    if (Math.abs(this.vx) < 1 && this.targetVx === 0) this.vx = 0;
 
     // Apply gravity & check platform landing
     const landedY = TestArena.checkPlatformLanding(this.x, this.y, this.width, this.height, this.vy);

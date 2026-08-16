@@ -32,6 +32,10 @@ export class MainScene extends Phaser.Scene {
   private platformLabels: Phaser.GameObjects.Text[] = [];
   private groundLabels: Map<string, Phaser.GameObjects.Text> = new Map();
 
+  // Parallax & 3D depth layers
+  private parallaxLayers: Phaser.GameObjects.Graphics[] = [];
+  private playerShadow!: Phaser.GameObjects.Ellipse;
+
   // Power Focus tracking
   private isFocusingPower: boolean = false;
   private powerFocusTime: number = 0;
@@ -128,6 +132,9 @@ export class MainScene extends Phaser.Scene {
     // Create Platform Sprites
     this.createPlatforms();
 
+    // Player ground shadow (rendered before entities so it's behind them)
+    this.playerShadow = this.add.ellipse(this.player.x, 498, 40, 10, 0x000000, 0.35).setOrigin(0.5);
+
     // Create Entity Sprites
     this.playerSprite = this.add.sprite(this.player.x, this.player.y, 'kail_transparent', 'kail_idle').setOrigin(0.5);
     this.playerSprite.setScale(64 / 153); // Proportional scale based on idle frame height (153px down to 64px)
@@ -135,8 +142,9 @@ export class MainScene extends Phaser.Scene {
     this.enemySprite = this.add.rectangle(this.enemy.x, this.enemy.y, this.enemy.width, this.enemy.height, 0xff3333).setOrigin(0.5);
     this.npcSprite = this.add.rectangle(this.npc.x, this.npc.y, this.npc.width, this.npc.height, 0xffcc00).setOrigin(0.5);
 
-    // Camera configuration
-    this.cameras.main.startFollow(this.playerSprite, true, 1.0, 1.0);
+    // Camera configuration — smooth follow with gentle lerp
+    this.cameras.main.startFollow(this.playerSprite, true, 0.08, 0.06);
+    this.cameras.main.setFollowOffset(0, -40); // Slight upward bias so player isn't dead-center
 
     // Keyboard configuration
     if (this.input.keyboard) {
@@ -189,37 +197,115 @@ export class MainScene extends Phaser.Scene {
   }
 
   private createBackground(): void {
-    // Sky
-    this.add.rectangle(1600, 250, 3200, 500, 0x1f1f2e).setOrigin(0.5);
-    
-    // Create 8 individual ground segments
+    // --- Parallax layer 0: Deep sky gradient ---
+    const skyGfx = this.add.graphics();
+    const skyH = 5600;
+    const stripes = 40;
+    for (let i = 0; i < stripes; i++) {
+      const t = i / stripes;
+      const r = Math.round(10 + t * 20);
+      const g = Math.round(10 + t * 25);
+      const b = Math.round(30 + t * 30);
+      const color = (r << 16) | (g << 8) | b;
+      skyGfx.fillStyle(color, 1);
+      skyGfx.fillRect(0, -5000 + (skyH / stripes) * i, 3200, skyH / stripes + 1);
+    }
+    skyGfx.setScrollFactor(1, 1);
+
+    // --- Parallax layer 1: Distant stars (moves slowest) ---
+    const starLayer = this.add.graphics();
+    starLayer.setScrollFactor(0.15, 0.15);
+    for (let i = 0; i < 120; i++) {
+      const sx = Math.random() * 4000 - 400;
+      const sy = Math.random() * 3000 - 2000;
+      const size = 0.5 + Math.random() * 1.5;
+      const brightness = 0.3 + Math.random() * 0.7;
+      starLayer.fillStyle(0xffffff, brightness);
+      starLayer.fillCircle(sx, sy, size);
+    }
+    this.parallaxLayers.push(starLayer);
+
+    // --- Parallax layer 2: Distant mountains (moves slowly) ---
+    const mtGfx = this.add.graphics();
+    mtGfx.setScrollFactor(0.3, 0.6);
+    mtGfx.fillStyle(0x1a2840, 0.8);
+    // Draw mountain silhouette
+    const mtPoints = [
+      { x: -200, y: 550 }, { x: 100, y: 300 }, { x: 350, y: 380 },
+      { x: 600, y: 220 }, { x: 900, y: 340 }, { x: 1200, y: 260 },
+      { x: 1500, y: 350 }, { x: 1800, y: 200 }, { x: 2100, y: 320 },
+      { x: 2400, y: 250 }, { x: 2700, y: 310 }, { x: 3000, y: 280 },
+      { x: 3400, y: 350 }, { x: 3600, y: 550 }
+    ];
+    mtGfx.beginPath();
+    mtGfx.moveTo(mtPoints[0].x, mtPoints[0].y);
+    for (let i = 1; i < mtPoints.length; i++) {
+      mtGfx.lineTo(mtPoints[i].x, mtPoints[i].y);
+    }
+    mtGfx.closePath();
+    mtGfx.fillPath();
+    this.parallaxLayers.push(mtGfx);
+
+    // --- Parallax layer 3: Mid-ground hills ---
+    const hillGfx = this.add.graphics();
+    hillGfx.setScrollFactor(0.55, 0.75);
+    hillGfx.fillStyle(0x1e3050, 0.7);
+    hillGfx.beginPath();
+    hillGfx.moveTo(-200, 550);
+    for (let x = -200; x <= 3600; x += 80) {
+      const h = 420 + Math.sin(x * 0.004) * 50 + Math.sin(x * 0.011) * 25;
+      hillGfx.lineTo(x, h);
+    }
+    hillGfx.lineTo(3600, 550);
+    hillGfx.closePath();
+    hillGfx.fillPath();
+    this.parallaxLayers.push(hillGfx);
+
+    // --- Ground segments with 3D top-surface highlight ---
     for (let i = 0; i < 8; i++) {
       const id = `ground_${i}`;
       const layout = TestArena.getObjectLayout(id);
+      // Main ground body
       const rect = this.add.rectangle(layout.x, layout.y, layout.w, layout.h, 0x2e3b4e).setOrigin(0.5);
-      rect.setStrokeStyle(1, 0x3e4d60); // subtle border between segments
+      rect.setStrokeStyle(1, 0x3e4d60);
       this.groundSprites.set(id, rect);
+
+      // 3D top surface highlight
+      const topHighlight = this.add.rectangle(
+        layout.x, layout.y - layout.h / 2 + 3, layout.w, 6, 0x4a6580
+      ).setOrigin(0.5).setAlpha(0.7);
+      topHighlight.setData('groundId', id);
     }
   }
 
   private createPlatforms(): void {
     TestArena.PLATFORMS.forEach(plat => {
+      // Bottom shadow for 3D depth
+      this.add.rectangle(plat.x + 3, plat.y + 4, plat.w, plat.h, 0x000000, 0.3).setOrigin(0.5);
+      // Main body
       const rect = this.add.rectangle(plat.x, plat.y, plat.w, plat.h, 0x475569).setOrigin(0.5);
       rect.setStrokeStyle(2, 0x64748b);
+      // Top surface highlight
+      this.add.rectangle(plat.x, plat.y - plat.h / 2 + 3, plat.w - 4, 5, 0x6b8aad, 0.6).setOrigin(0.5);
     });
   }
 
   private createArenaObjects(): void {
     this.arena.objects.forEach(obj => {
       if (obj.id.startsWith('ground_')) return; // Skipped, ground is rendered by createBackground
-      
+
       const layout = TestArena.getObjectLayout(obj.id);
-      
+
       const container = this.add.container(layout.x, layout.y);
+      // Drop shadow for 3D depth
+      const shadow = this.add.rectangle(3, 4, layout.w, layout.h, 0x000000, 0.25).setOrigin(0.5);
+      // Main body
       const rect = this.add.rectangle(0, 0, layout.w, layout.h, this.getObjectColor(obj.id, obj.state)).setOrigin(0.5);
+      // Top edge highlight
+      const highlight = this.add.rectangle(0, -layout.h / 2 + 2, layout.w - 4, 4, 0xffffff, 0.12).setOrigin(0.5);
       const text = this.add.text(0, -layout.h / 2 - 10, obj.name, { fontSize: '12px', color: '#ffffff' }).setOrigin(0.5);
-      
-      container.add([rect, text]);
+
+      container.add([shadow, rect, highlight, text]);
       this.arenaSprites.set(obj.id, container);
     });
   }
@@ -582,25 +668,34 @@ export class MainScene extends Phaser.Scene {
   }
 
   private spawnDebris(x: number, y: number, count: number): void {
+    const colors = [0x8b5a2b, 0xa0704a, 0x6b4226, 0xd2691e];
     for (let i = 0; i < count; i++) {
-      const size = 4 + Math.random() * 8;
-      const color = 0x8b5a2b; // Default debris color
+      const size = 3 + Math.random() * 9;
+      const color = colors[Math.floor(Math.random() * colors.length)];
       const shard = this.add.rectangle(x, y, size, size, color);
-      
+      shard.setAngle(Math.random() * 360);
+
       this.physics.add.existing(shard);
       const body = shard.body as Phaser.Physics.Arcade.Body;
-      
+
       body.setVelocity(
-        (Math.random() - 0.5) * 300,
-        -Math.random() * 300 - 100
+        (Math.random() - 0.5) * 400,
+        -Math.random() * 350 - 120
       );
-      body.setGravityY(800);
+      body.setGravityY(900);
+      body.setAngularVelocity((Math.random() - 0.5) * 600);
 
       this.particlePool.add(shard);
 
-      // Auto-destroy shard after 1.5 seconds
-      this.time.delayedCall(1500, () => {
-        shard.destroy();
+      // Smooth fade-out over lifetime
+      this.tweens.add({
+        targets: shard,
+        alpha: 0,
+        scaleX: 0.2,
+        scaleY: 0.2,
+        duration: 1400 + Math.random() * 400,
+        ease: 'Power2',
+        onComplete: () => shard.destroy()
       });
     }
   }
@@ -610,6 +705,20 @@ export class MainScene extends Phaser.Scene {
     this.playerSprite.setPosition(this.player.x, this.player.y);
     this.enemySprite.setPosition(this.enemy.x, this.enemy.y);
     this.npcSprite.setPosition(this.npc.x, this.npc.y);
+
+    // Player shadow — follows x, sits on ground, scales with height
+    const groundY = 498;
+    const heightAboveGround = Math.max(0, groundY - this.player.y);
+    const shadowScale = Math.max(0.3, 1.0 - heightAboveGround / 400);
+    const shadowAlpha = Math.max(0.05, 0.35 - heightAboveGround / 600);
+    this.playerShadow.setPosition(this.player.x, groundY);
+    this.playerShadow.setScale(shadowScale, shadowScale * 0.5);
+    this.playerShadow.setAlpha(shadowAlpha);
+
+    // Smooth sprite scale breathing (subtle idle pulse)
+    const baseScale = 64 / 153;
+    const breathe = 1.0 + Math.sin(this.time.now * 0.003) * 0.008;
+    this.playerSprite.setScale(baseScale * breathe);
 
     // Swap Player frames based on movement state
     if (this.player.isPunching) {
@@ -626,6 +735,10 @@ export class MainScene extends Phaser.Scene {
 
     // Flip Player direction
     this.playerSprite.setFlipX(this.player.facingDir < 0);
+
+    // Smooth lean angle when moving fast
+    const leanAngle = Phaser.Math.Clamp(this.player.vx * 0.008, -8, 8);
+    this.playerSprite.setAngle(leanAngle);
 
     // Rotate or flip other entities based on direction
     this.enemySprite.setScale(this.enemy.facingDir, 1);
@@ -658,7 +771,8 @@ export class MainScene extends Phaser.Scene {
       if (obj.id.startsWith('ground_')) return; // Skipped, handled below
       const container = this.arenaSprites.get(obj.id);
       if (container) {
-        const rect = container.list[0] as Phaser.GameObjects.Rectangle;
+        // container.list: [0]=shadow, [1]=rect, [2]=highlight, [3]=text
+        const rect = container.list[1] as Phaser.GameObjects.Rectangle;
         if (obj.state === DestructionState.DESTROYED) {
           container.setVisible(false);
         } else {
