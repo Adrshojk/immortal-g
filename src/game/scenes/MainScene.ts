@@ -157,14 +157,14 @@ export class MainScene extends Phaser.Scene {
     // Player ground shadow (rendered before entities so it's behind them)
     this.playerShadow = this.add.ellipse(this.player.x, 498, 40, 10, 0x000000, 0.35).setOrigin(0.5);
 
-    // Create Entity Sprites
-    this.playerSprite = this.add.sprite(this.player.x, this.player.y, 'kail_transparent', 'kail_idle').setOrigin(0.5);
+    // Create Entity Sprites (depth 10 to render above background graphics)
+    this.playerSprite = this.add.sprite(this.player.x, this.player.y, 'kail_transparent', 'kail_idle').setOrigin(0.5).setDepth(10);
     this.playerSprite.setScale(64 / 153); // Proportional scale based on idle frame height (153px down to 64px)
-
-    this.enemySprite = this.add.sprite(this.enemy.x, this.enemy.y, 'enemy_sprite').setOrigin(0.5);
+ 
+    this.enemySprite = this.add.sprite(this.enemy.x, this.enemy.y, 'enemy_sprite').setOrigin(0.5).setDepth(10);
     this.enemySprite.setDisplaySize(this.enemy.width, this.enemy.height);
-
-    this.npcSprite = this.add.rectangle(this.npc.x, this.npc.y, this.npc.width, this.npc.height, 0xffcc00).setOrigin(0.5);
+ 
+    this.npcSprite = this.add.rectangle(this.npc.x, this.npc.y, this.npc.width, this.npc.height, 0xffcc00).setOrigin(0.5).setDepth(10);
 
     // Camera configuration — smooth follow with gentle lerp
     this.cameras.main.startFollow(this.playerSprite, true, 0.08, 0.06);
@@ -464,8 +464,8 @@ export class MainScene extends Phaser.Scene {
     }).setOrigin(1, 1);
     this.dialogueContainer.add([dialogBg, speakerLabel, this.dialogueText, promptText]);
 
-    // Graphics object for drawing interior walls and cozy background elements
-    this.interiorOverlayGraphics = this.add.graphics().setDepth(2);
+    // Graphics object for drawing interior walls and cozy background elements (depth 1 to render behind sprites)
+    this.interiorOverlayGraphics = this.add.graphics().setDepth(1);
   }
 
   private createRewindOverlay(): void {
