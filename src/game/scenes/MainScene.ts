@@ -135,7 +135,7 @@ export class MainScene extends Phaser.Scene {
     this.npcSprite = this.add.rectangle(this.npc.x, this.npc.y, this.npc.width, this.npc.height, 0xffcc00).setOrigin(0.5);
 
     // Camera configuration
-    this.cameras.main.startFollow(this.playerSprite, true, 0.05, 0.05);
+    this.cameras.main.startFollow(this.playerSprite, true, 1.0, 1.0);
 
     // Keyboard configuration
     if (this.input.keyboard) {
