@@ -253,5 +253,24 @@ describe('IMMORTAL Core Systems', () => {
       const landAfter = arena.checkGroundLanding(player.x, player.y, player.width, player.height, player.vy);
       expect(landAfter).toBeNull();
     });
+
+    it('should calculate dynamic power based on F hold duration correctly', () => {
+      const powerSystem = new PowerSystem();
+      
+      // Tap (0.1s hold) -> 100 power
+      expect(powerSystem.calculatePower(0.1)).toBe(100);
+
+      // 0.25s hold -> 500 power
+      expect(powerSystem.calculatePower(0.25)).toBe(500);
+
+      // 0.5s hold -> 1000 power
+      expect(powerSystem.calculatePower(0.5)).toBe(1000);
+
+      // 1.0s hold -> 10000 power
+      expect(powerSystem.calculatePower(1.0)).toBe(10000);
+
+      // 2.0s+ hold -> 999999 power (Infinity)
+      expect(powerSystem.calculatePower(2.5)).toBe(999999);
+    });
   });
 });

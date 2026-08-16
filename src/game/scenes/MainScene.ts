@@ -32,6 +32,11 @@ export class MainScene extends Phaser.Scene {
   private platformLabels: Phaser.GameObjects.Text[] = [];
   private groundLabels: Map<string, Phaser.GameObjects.Text> = new Map();
 
+  // Power Charge tracking
+  private isChargingPower: boolean = false;
+  private powerChargeTime: number = 0;
+  private chargeAuraGraphics!: Phaser.GameObjects.Graphics;
+
   // Controls
   private keys!: {
     A: Phaser.Input.Keyboard.Key;
@@ -111,6 +116,10 @@ export class MainScene extends Phaser.Scene {
 
     // Create Debris Particle Group
     this.particlePool = this.add.group();
+
+    // Create Charge Aura Graphics overlay
+    this.chargeAuraGraphics = this.add.graphics();
+    this.chargeAuraGraphics.setVisible(false);
 
     // Create Arena Sprites
     this.createArenaObjects();
@@ -303,8 +312,6 @@ export class MainScene extends Phaser.Scene {
     const right = this.keys && (this.keys.D.isDown || this.keys.RIGHT.isDown);
     const jump = this.keys && (this.keys.SPACE.isDown || this.keys.W.isDown || this.keys.UP.isDown);
     const rewind = this.keys && this.keys.R.isDown;
-    const punchPressed = this.keys && Phaser.Input.Keyboard.JustDown(this.keys.F);
-
     const hasHistory = this.timeSystem.getHistoryLength() > 0;
 
     if (rewind && hasHistory) {
@@ -333,21 +340,47 @@ export class MainScene extends Phaser.Scene {
         this.rewindText.setColor('#ffcc00');
       }
 
+      // Power Charge tracking
+      let activePowerScale = this.powerSystem.getPowerScale();
+      if (this.keys && this.keys.F.isDown) {
+        if (!this.isChargingPower) {
+          this.isChargingPower = true;
+          this.powerChargeTime = 0;
+          this.chargeAuraGraphics.setVisible(true);
+        }
+        this.powerChargeTime += dt;
+        activePowerScale = this.powerSystem.calculatePower(this.powerChargeTime);
+        this.updateChargeFeedback();
+      } else {
+        if (this.isChargingPower) {
+          this.isChargingPower = false;
+          this.chargeAuraGraphics.setVisible(false);
+          this.chargeAuraGraphics.clear();
+          const finalPower = this.powerSystem.calculatePower(this.powerChargeTime);
+          this.performPlayerPunch(finalPower);
+          
+          // Restore any offset platforms/containers
+          this.arena.objects.forEach(obj => {
+            const container = this.arenaSprites.get(obj.id);
+            const layout = TestArena.getObjectLayout(obj.id);
+            if (container) {
+              container.x = layout.x;
+              container.y = layout.y;
+            }
+          });
+        }
+      }
+
       // Record snapshot periodically (every frame in the prototype)
-      const playerSnap = this.player.getState(this.powerSystem.getPowerScale());
+      const playerSnap = this.player.getState(activePowerScale);
       const entitiesSnap = [this.enemy.getState(), this.npc.getState()];
       const worldSnap = this.arena.getState();
       this.timeSystem.record(playerSnap, entitiesSnap, worldSnap);
 
       // Update Simulation states
-      this.player.update(dt, { left, right, jump }, this.powerSystem.getPowerScale(), this.arena);
+      this.player.update(dt, { left, right, jump }, activePowerScale, this.arena);
       this.enemy.update(dt, this.player.x, this.player.y, this.arena);
       this.npc.update(dt, this.player.x, this.arena);
-
-      // Handle Attack trigger
-      if (punchPressed) {
-        this.performPlayerPunch();
-      }
 
       // Check collision details
       this.checkSimulationCollisions();
@@ -363,9 +396,10 @@ export class MainScene extends Phaser.Scene {
     this.updateHUD();
   }
 
-  private performPlayerPunch(): void {
+  private performPlayerPunch(forcedPower?: number): void {
     if (this.player.punch()) {
-      const action = this.powerSystem.getAction('punch');
+      const power = forcedPower !== undefined ? forcedPower : this.powerSystem.getPowerScale();
+      const action = this.powerSystem.createPowerResult(power, 'punch');
       
       // Target bounds check: if infinity power, destroy the entire world instantly
       if (action.destructionLevel === 5) {
@@ -696,7 +730,13 @@ export class MainScene extends Phaser.Scene {
 
   private updateHUD(): void {
     const scale = this.powerSystem.getPowerScale();
-    const powerStr = scale === 999999 ? 'INFINITY' : scale.toString();
+    let powerStr = scale === 999999 ? 'INFINITY' : scale.toString();
+    
+    if (this.isChargingPower) {
+      const chargePower = this.powerSystem.calculatePower(this.powerChargeTime);
+      const pct = Math.min(100, Math.round((this.powerChargeTime / 2.0) * 100));
+      powerStr = `CHARGING: ${chargePower} (${pct}%)`;
+    }
     this.powerText.setText(`POWER: ${powerStr}`);
 
     // Update debug text details
@@ -836,5 +876,58 @@ export class MainScene extends Phaser.Scene {
       }).setOrigin(0.5);
       this.groundLabels.set(id, lbl);
     }
+  }
+
+  private updateChargeFeedback(): void {
+    // 1. Aura drawing
+    this.chargeAuraGraphics.clear();
+    const radius = 30 + Math.min(1.0, this.powerChargeTime / 2.0) * 50;
+    
+    // Draw neon cyan circle around the player
+    this.chargeAuraGraphics.lineStyle(2, 0x00ffff, 0.8);
+    this.chargeAuraGraphics.fillStyle(0x00ffff, 0.15 + Math.sin(this.time.now / 100) * 0.05);
+    this.chargeAuraGraphics.fillCircle(this.player.x, this.player.y, radius);
+    this.chargeAuraGraphics.strokeCircle(this.player.x, this.player.y, radius);
+    
+    // 2. Camera shake increases with charge time
+    const shakeAmount = Math.min(0.015, (this.powerChargeTime / 2.0) * 0.015);
+    if (shakeAmount > 0.002) {
+      this.cameras.main.shake(16, shakeAmount);
+    }
+    
+    // 3. Audio hum rises in pitch
+    if (this.time.now % 100 < 20) {
+      this.soundEffect(150 + this.powerChargeTime * 200, 0.06);
+    }
+
+    // 4. Particle sparks (draw a few random small rectangles near the player)
+    const particleCount = Math.floor(1 + this.powerChargeTime * 3);
+    for (let i = 0; i < particleCount; i++) {
+      const px = this.player.x + (Math.random() - 0.5) * radius * 1.5;
+      const py = this.player.y + (Math.random() - 0.5) * radius * 1.5;
+      const size = 2 + Math.random() * 4;
+      const spark = this.add.rectangle(px, py, size, size, 0x00ffff);
+      this.time.delayedCall(100 + Math.random() * 150, () => spark.destroy());
+    }
+
+    // 5. Shake nearby objects slightly
+    this.arena.objects.forEach(obj => {
+      if (obj.state === DestructionState.DESTROYED) return;
+      const layout = TestArena.getObjectLayout(obj.id);
+      const container = this.arenaSprites.get(obj.id);
+      if (container) {
+        const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, layout.x, layout.y);
+        if (dist < radius * 1.8) {
+          // Vibrates container
+          const shakeVal = (this.powerChargeTime * 2) * (1 - dist / (radius * 1.8));
+          container.x = layout.x + (Math.random() - 0.5) * shakeVal;
+          container.y = layout.y + (Math.random() - 0.5) * shakeVal;
+        } else {
+          // Restore original positions
+          container.x = layout.x;
+          container.y = layout.y;
+        }
+      }
+    });
   }
 }

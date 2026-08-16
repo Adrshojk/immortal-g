@@ -4,14 +4,13 @@ export interface PowerAction {
   radius: number;
   knockback: number;
   penetration: number;
-  destructionLevel: number; // 0: None, 1: Fragile, 2: Structural, 3: Building, 4: Cosmic
+  destructionLevel: number; // 0: None, 1: Fragile, 2: Structural, 3: Building, 4: Cosmic, 5: World
 }
 
 export class PowerSystem {
-  // Available power scales
+  // Available power scales (retains exact backwards compatibility)
   public static readonly SCALES = [1, 10, 100, 1000, 10000, 999999];
-  
-  private currentScaleIndex: number = 2; // Default to 100
+  private currentScaleIndex: number = 2; // Default to 100 (Index 2)
 
   public getPowerScale(): number {
     return PowerSystem.SCALES[this.currentScaleIndex];
@@ -32,34 +31,71 @@ export class PowerSystem {
   }
 
   public getAction(actionId: string): PowerAction {
-    const scale = this.getPowerScale();
-    
-    // Compute action attributes dynamically based on current power scale
-    // Power level 1: Weak, no structural damage, small push
-    // Power level 10: Knockback enemies
-    // Power level 100: Wall damaged
-    // Power level 1000: Structure destroyed
-    // Power level 10000: Extreme destruction
-    
-    let force = scale;
-    let radius = 40 + Math.log10(scale) * 15; // Radius grows with power
-    let knockback = scale * 1.5;
-    let penetration = scale * 0.1;
-    
-    let destructionLevel = 0;
-    if (scale >= 999999) {
-      destructionLevel = 5; // World / Cosmic Annihilation
-    } else if (scale >= 10000) {
-      destructionLevel = 4; // Cosmic / complete annihilation
-    } else if (scale >= 1000) {
-      destructionLevel = 3; // Building destruction
-    } else if (scale >= 100) {
-      destructionLevel = 2; // Structural destruction
-    } else if (scale >= 10) {
-      destructionLevel = 1; // Fragile destruction
-    } else {
-      destructionLevel = 0; // None (just push/touch)
+    return this.createPowerResult(this.getPowerScale(), actionId);
+  }
+
+  /**
+   * Calculates dynamic power scale based on hold duration of the attack key.
+   */
+  public calculatePower(holdDuration: number): number {
+    if (holdDuration <= 0.15) {
+      return 100; // Tap defaults to 100
     }
+    if (holdDuration >= 2.0) {
+      return 999999; // Catastrophic Max (Infinity)
+    }
+
+    // Nonlinear curve interpolation
+    if (holdDuration < 0.25) {
+      // Interpolate between 100 and 500
+      const pct = (holdDuration - 0.15) / (0.25 - 0.15);
+      return Math.round(100 + pct * 400);
+    } else if (holdDuration < 0.5) {
+      // Interpolate between 500 and 1000
+      const pct = (holdDuration - 0.25) / (0.5 - 0.25);
+      return Math.round(500 + pct * 500);
+    } else if (holdDuration < 1.0) {
+      // Interpolate between 1000 and 10000
+      const pct = (holdDuration - 0.5) / (1.0 - 0.5);
+      return Math.round(1000 + pct * 9000);
+    } else {
+      // Interpolate between 10000 and 999999
+      const pct = (holdDuration - 1.0) / (2.0 - 1.0);
+      return Math.round(10000 + pct * 989999);
+    }
+  }
+
+  /**
+   * Mapped tier level for destruction threshold matching (0: None, 1: Fragile, 2: Structural, 3: Building, 4: Cosmic, 5: World)
+   */
+  public getPowerTier(power: number): number {
+    if (power >= 999999) {
+      return 5; // World / Cosmic Annihilation
+    }
+    if (power >= 10000) {
+      return 4; // Cosmic / complete annihilation
+    }
+    if (power >= 1000) {
+      return 3; // Building destruction
+    }
+    if (power >= 100) {
+      return 2; // Structural destruction
+    }
+    if (power >= 10) {
+      return 1; // Fragile destruction
+    }
+    return 0; // None (push only)
+  }
+
+  /**
+   * Generates a reusable action result based on power scale value
+   */
+  public createPowerResult(power: number, actionId: string = 'punch'): PowerAction {
+    const force = power;
+    const radius = 40 + Math.log10(Math.max(1, power)) * 15;
+    const knockback = power * 1.5;
+    const penetration = power * 0.1;
+    const destructionLevel = this.getPowerTier(power);
 
     return {
       id: actionId,
