@@ -276,20 +276,20 @@ describe('IMMORTAL Core Systems', () => {
     it('should calculate dynamic power based on F hold duration correctly', () => {
       const powerSystem = new PowerSystem();
       
-      // Tap (0.1s hold) -> 100 power
-      expect(powerSystem.calculatePower(0.1)).toBe(100);
+      // Tap (0.1s hold) -> 999999 power (Infinity)
+      expect(powerSystem.calculatePower(0.1)).toBe(999999);
 
-      // 0.25s hold -> 500 power
-      expect(powerSystem.calculatePower(0.25)).toBe(500);
+      // 0.25s hold -> 10000 power
+      expect(powerSystem.calculatePower(0.25)).toBe(10000);
 
       // 0.5s hold -> 1000 power
       expect(powerSystem.calculatePower(0.5)).toBe(1000);
 
-      // 1.0s hold -> 10000 power
-      expect(powerSystem.calculatePower(1.0)).toBe(10000);
+      // 1.0s hold -> 100 power
+      expect(powerSystem.calculatePower(1.0)).toBe(100);
 
-      // 2.0s+ hold -> 999999 power (Infinity)
-      expect(powerSystem.calculatePower(2.5)).toBe(999999);
+      // 2.0s+ hold -> 1 power (Precision Focus)
+      expect(powerSystem.calculatePower(2.5)).toBe(1);
     });
 
     it('should damage/destroy ground segment when player lands with high velocity', () => {

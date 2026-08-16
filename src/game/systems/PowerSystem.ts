@@ -36,32 +36,33 @@ export class PowerSystem {
 
   /**
    * Calculates dynamic power scale based on hold duration of the attack key.
+   * A single tap releases INFINITY. Holding the key focuses to REDUCE the power.
    */
   public calculatePower(holdDuration: number): number {
     if (holdDuration <= 0.15) {
-      return 100; // Tap defaults to 100
+      return 999999; // Tap releases INFINITY
     }
     if (holdDuration >= 2.0) {
-      return 999999; // Catastrophic Max (Infinity)
+      return 1; // 2s+ focus reduces power to 1 (precision touch)
     }
 
-    // Nonlinear curve interpolation
+    // Reversed nonlinear curve interpolation
     if (holdDuration < 0.25) {
-      // Interpolate between 100 and 500
+      // Interpolate between 999999 and 10000
       const pct = (holdDuration - 0.15) / (0.25 - 0.15);
-      return Math.round(100 + pct * 400);
+      return Math.round(999999 - pct * 989999);
     } else if (holdDuration < 0.5) {
-      // Interpolate between 500 and 1000
+      // Interpolate between 10000 and 1000
       const pct = (holdDuration - 0.25) / (0.5 - 0.25);
-      return Math.round(500 + pct * 500);
+      return Math.round(10000 - pct * 9000);
     } else if (holdDuration < 1.0) {
-      // Interpolate between 1000 and 10000
+      // Interpolate between 1000 and 100
       const pct = (holdDuration - 0.5) / (1.0 - 0.5);
-      return Math.round(1000 + pct * 9000);
+      return Math.round(1000 - pct * 900);
     } else {
-      // Interpolate between 10000 and 999999
+      // Interpolate between 100 and 1
       const pct = (holdDuration - 1.0) / (2.0 - 1.0);
-      return Math.round(10000 + pct * 989999);
+      return Math.round(100 - pct * 99);
     }
   }
 

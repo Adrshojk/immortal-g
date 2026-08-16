@@ -882,9 +882,9 @@ export class MainScene extends Phaser.Scene {
   }
 
   private updateChargeFeedback(): void {
-    // 1. Aura drawing
+    // 1. Aura drawing (shrinks from huge/chaotic to tight/focused)
     this.chargeAuraGraphics.clear();
-    const radius = 30 + Math.min(1.0, this.powerChargeTime / 2.0) * 50;
+    const radius = Math.max(15, 80 - Math.min(1.0, this.powerChargeTime / 2.0) * 65);
     
     // Draw neon cyan circle around the player
     this.chargeAuraGraphics.lineStyle(2, 0x00ffff, 0.8);
@@ -892,19 +892,19 @@ export class MainScene extends Phaser.Scene {
     this.chargeAuraGraphics.fillCircle(this.player.x, this.player.y, radius);
     this.chargeAuraGraphics.strokeCircle(this.player.x, this.player.y, radius);
     
-    // 2. Camera shake increases with charge time
-    const shakeAmount = Math.min(0.015, (this.powerChargeTime / 2.0) * 0.015);
-    if (shakeAmount > 0.002) {
+    // 2. Camera shake decreases as focus increases
+    const shakeAmount = Math.max(0, 0.02 - (this.powerChargeTime / 2.0) * 0.02);
+    if (shakeAmount > 0.001) {
       this.cameras.main.shake(16, shakeAmount);
     }
     
-    // 3. Audio hum rises in pitch
+    // 3. Audio hum pitch falls as power is restrained
     if (this.time.now % 100 < 20) {
-      this.soundEffect(150 + this.powerChargeTime * 200, 0.06);
+      this.soundEffect(Math.max(80, 600 - this.powerChargeTime * 250), 0.06);
     }
 
-    // 4. Particle sparks (draw a few random small rectangles near the player)
-    const particleCount = Math.floor(1 + this.powerChargeTime * 3);
+    // 4. Particle sparks reduce over focus duration
+    const particleCount = Math.max(0, Math.floor(6 - this.powerChargeTime * 3));
     for (let i = 0; i < particleCount; i++) {
       const px = this.player.x + (Math.random() - 0.5) * radius * 1.5;
       const py = this.player.y + (Math.random() - 0.5) * radius * 1.5;
@@ -913,7 +913,7 @@ export class MainScene extends Phaser.Scene {
       this.time.delayedCall(100 + Math.random() * 150, () => spark.destroy());
     }
 
-    // 5. Shake nearby objects slightly
+    // 5. Shaking of nearby objects calms down as force becomes concentrated
     this.arena.objects.forEach(obj => {
       if (obj.state === DestructionState.DESTROYED) return;
       const layout = TestArena.getObjectLayout(obj.id);
@@ -921,12 +921,10 @@ export class MainScene extends Phaser.Scene {
       if (container) {
         const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, layout.x, layout.y);
         if (dist < radius * 1.8) {
-          // Vibrates container
-          const shakeVal = (this.powerChargeTime * 2) * (1 - dist / (radius * 1.8));
+          const shakeVal = Math.max(0, 6 - this.powerChargeTime * 3) * (1 - dist / (radius * 1.8));
           container.x = layout.x + (Math.random() - 0.5) * shakeVal;
           container.y = layout.y + (Math.random() - 0.5) * shakeVal;
         } else {
-          // Restore original positions
           container.x = layout.x;
           container.y = layout.y;
         }
