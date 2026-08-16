@@ -27,7 +27,7 @@ export class Player {
   private gravity: number = 1200;
   private moveHoldTime: number = 0;
 
-  public update(dt: number, keys: { left: boolean; right: boolean; jump: boolean }, powerScale: number, arena: TestArena): void {
+  public update(dt: number, keys: { left: boolean; right: boolean; jump: boolean; down?: boolean }, powerScale: number, arena: TestArena): void {
     if (this.punchCooldown > 0) {
       this.punchCooldown -= dt;
     } else {
@@ -93,7 +93,14 @@ export class Player {
         this.vy = currentJumpForce;
       }
     } else {
-      this.vy += this.gravity * dt;
+      // Flight mechanics when in the air
+      if (keys.jump) {
+        this.vy = currentJumpForce * 0.8; // Propel upwards (flight)
+      } else if (keys.down) {
+        this.vy = -currentJumpForce * 0.8; // Propel downwards (flight)
+      } else {
+        this.vy += this.gravity * dt;
+      }
     }
 
     // Update positions

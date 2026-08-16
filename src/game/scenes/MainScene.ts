@@ -52,6 +52,7 @@ export class MainScene extends Phaser.Scene {
     LEFT: Phaser.Input.Keyboard.Key;
     RIGHT: Phaser.Input.Keyboard.Key;
     UP: Phaser.Input.Keyboard.Key;
+    DOWN: Phaser.Input.Keyboard.Key;
   };
 
   // HUD & UI Elements
@@ -107,9 +108,9 @@ export class MainScene extends Phaser.Scene {
       kailTexture.add('kail_rewind', 0, 641, 856, 109, 164);
     }
 
-    // Set world size matching simulator
-    this.cameras.main.setBounds(0, 0, 3200, 600);
-    this.physics.world.setBounds(0, 0, 3200, 600);
+    // Set world size matching simulator (allows scrolling high into the sky)
+    this.cameras.main.setBounds(0, -5000, 3200, 5600);
+    this.physics.world.setBounds(0, -5000, 3200, 5600);
 
     // Create background sky/terrain grid
     this.createBackground();
@@ -152,7 +153,8 @@ export class MainScene extends Phaser.Scene {
         TAB: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.TAB),
         LEFT: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.LEFT),
         RIGHT: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT),
-        UP: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.UP)
+        UP: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.UP),
+        DOWN: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN)
       };
 
       // Set up simple keydown events for instant toggles
@@ -311,6 +313,7 @@ export class MainScene extends Phaser.Scene {
     const left = this.keys && (this.keys.A.isDown || this.keys.LEFT.isDown);
     const right = this.keys && (this.keys.D.isDown || this.keys.RIGHT.isDown);
     const jump = this.keys && (this.keys.SPACE.isDown || this.keys.W.isDown || this.keys.UP.isDown);
+    const down = this.keys && (this.keys.S.isDown || this.keys.DOWN.isDown);
     const rewind = this.keys && this.keys.R.isDown;
     const hasHistory = this.timeSystem.getHistoryLength() > 0;
 
@@ -378,7 +381,7 @@ export class MainScene extends Phaser.Scene {
       this.timeSystem.record(playerSnap, entitiesSnap, worldSnap);
 
       // Update Simulation states
-      this.player.update(dt, { left, right, jump }, activePowerScale, this.arena);
+      this.player.update(dt, { left, right, jump, down }, activePowerScale, this.arena);
       this.enemy.update(dt, this.player.x, this.player.y, this.arena);
       this.npc.update(dt, this.player.x, this.arena);
 
