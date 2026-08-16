@@ -19,7 +19,7 @@ export class MainScene extends Phaser.Scene {
 
   // Phaser Display objects
   private playerSprite!: Phaser.GameObjects.Sprite;
-  private enemySprite!: Phaser.GameObjects.Rectangle;
+  private enemySprite!: Phaser.GameObjects.Sprite;
   private npcSprite!: Phaser.GameObjects.Rectangle;
   private arenaSprites: Map<string, Phaser.GameObjects.Container> = new Map();
   private groundSprites: Map<string, Phaser.GameObjects.Rectangle> = new Map();
@@ -72,8 +72,13 @@ export class MainScene extends Phaser.Scene {
   }
 
   public preload(): void {
-    // Load Kail character sheet from public directory
+    // Load Kail character sheet and other assets from public directory
     this.load.image('kail_sheet', 'kail_spritesheet.jpg');
+    this.load.image('oak_tree_raw', 'oak_tree.jpg');
+    this.load.image('pine_tree_raw', 'pine_tree.jpg');
+    this.load.image('stone_wall_raw', 'stone_wall.jpg');
+    this.load.image('house_raw', 'house.jpg');
+    this.load.image('enemy_raw', 'enemy.jpg');
   }
 
   public create(): void {
@@ -88,8 +93,13 @@ export class MainScene extends Phaser.Scene {
     this.powerSystem = new PowerSystem();
     this.timeSystem = new TimeSystem();
 
-    // Create transparent version of kail_sheet dynamically to key out background
+    // Create transparent version of Kail and other game assets dynamically
     this.createTransparentTexture(this, 'kail_transparent', 'kail_sheet');
+    this.createTransparentTexture(this, 'oak_tree', 'oak_tree_raw');
+    this.createTransparentTexture(this, 'pine_tree', 'pine_tree_raw');
+    this.createTransparentTexture(this, 'stone_wall', 'stone_wall_raw');
+    this.createTransparentTexture(this, 'house', 'house_raw');
+    this.createTransparentTexture(this, 'enemy_sprite', 'enemy_raw');
 
     // Define frames on the new transparent texture based on the 1024x1024 sheet
     const kailTexture = this.textures.get('kail_transparent');
@@ -132,7 +142,9 @@ export class MainScene extends Phaser.Scene {
     this.playerSprite = this.add.sprite(this.player.x, this.player.y, 'kail_transparent', 'kail_idle').setOrigin(0.5);
     this.playerSprite.setScale(64 / 153); // Proportional scale based on idle frame height (153px down to 64px)
 
-    this.enemySprite = this.add.rectangle(this.enemy.x, this.enemy.y, this.enemy.width, this.enemy.height, 0xff3333).setOrigin(0.5);
+    this.enemySprite = this.add.sprite(this.enemy.x, this.enemy.y, 'enemy_sprite').setOrigin(0.5);
+    this.enemySprite.setDisplaySize(this.enemy.width, this.enemy.height);
+
     this.npcSprite = this.add.rectangle(this.npc.x, this.npc.y, this.npc.width, this.npc.height, 0xffcc00).setOrigin(0.5);
 
     // Camera configuration
@@ -216,10 +228,30 @@ export class MainScene extends Phaser.Scene {
       const layout = TestArena.getObjectLayout(obj.id);
       
       const container = this.add.container(layout.x, layout.y);
-      const rect = this.add.rectangle(0, 0, layout.w, layout.h, this.getObjectColor(obj.id, obj.state)).setOrigin(0.5);
+      
+      // Determine if this object has a custom sprite texture
+      let textureKey = '';
+      if (obj.id.startsWith('house')) textureKey = 'house';
+      else if (obj.id.startsWith('wall')) textureKey = 'stone_wall';
+      else if (obj.id === 'tree_1') textureKey = 'oak_tree';
+      else if (obj.id === 'tree_2') textureKey = 'pine_tree';
+      
+      let displayObj: Phaser.GameObjects.GameObject;
+      
+      if (textureKey !== '') {
+        const sprite = this.add.sprite(0, 0, textureKey).setOrigin(0.5);
+        sprite.setDisplaySize(layout.w, layout.h);
+        sprite.setName('sprite');
+        displayObj = sprite;
+      } else {
+        const rect = this.add.rectangle(0, 0, layout.w, layout.h, this.getObjectColor(obj.id, obj.state)).setOrigin(0.5);
+        rect.setName('rect');
+        displayObj = rect;
+      }
+      
       const text = this.add.text(0, -layout.h / 2 - 10, obj.name, { fontSize: '12px', color: '#ffffff' }).setOrigin(0.5);
       
-      container.add([rect, text]);
+      container.add([displayObj, text]);
       this.arenaSprites.set(obj.id, container);
     });
   }
@@ -628,7 +660,7 @@ export class MainScene extends Phaser.Scene {
     this.playerSprite.setFlipX(this.player.facingDir < 0);
 
     // Rotate or flip other entities based on direction
-    this.enemySprite.setScale(this.enemy.facingDir, 1);
+    this.enemySprite.setFlipX(this.enemy.facingDir < 0);
     this.npcSprite.setScale(this.npc.facingDir, 1);
 
     // Apply alpha / visual states based on health/damage
@@ -658,12 +690,24 @@ export class MainScene extends Phaser.Scene {
       if (obj.id.startsWith('ground_')) return; // Skipped, handled below
       const container = this.arenaSprites.get(obj.id);
       if (container) {
-        const rect = container.list[0] as Phaser.GameObjects.Rectangle;
         if (obj.state === DestructionState.DESTROYED) {
           container.setVisible(false);
         } else {
           container.setVisible(true);
-          rect.setFillStyle(this.getObjectColor(obj.id, obj.state));
+          const firstChild = container.list[0];
+          if (firstChild.name === 'sprite') {
+            const sprite = firstChild as Phaser.GameObjects.Sprite;
+            if (obj.state === DestructionState.DAMAGED) {
+              sprite.setTint(0xffa500); // Orange tint
+            } else if (obj.state === DestructionState.FRACTURED) {
+              sprite.setTint(0xd2691e); // Rust tint
+            } else {
+              sprite.clearTint();
+            }
+          } else if (firstChild.name === 'rect') {
+            const rect = firstChild as Phaser.GameObjects.Rectangle;
+            rect.setFillStyle(this.getObjectColor(obj.id, obj.state));
+          }
         }
       }
     });
@@ -800,9 +844,9 @@ export class MainScene extends Phaser.Scene {
       const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const data = imgData.data;
       
-      // Sample background color at x=390, y=250 in the sprite grid area
-      const sampleX = 390;
-      const sampleY = 250;
+      // Sample background color (corner for generic assets, custom coord for kail_sheet)
+      const sampleX = originalKey === 'kail_sheet' ? 390 : 5;
+      const sampleY = originalKey === 'kail_sheet' ? 250 : 5;
       const samplePixelIdx = (sampleY * canvas.width + sampleX) * 4;
       
       const targetR = data[samplePixelIdx];
