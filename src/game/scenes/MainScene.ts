@@ -62,6 +62,7 @@ export class MainScene extends Phaser.Scene {
   // HUD & UI Elements
   private hudContainer!: Phaser.GameObjects.Container;
   private powerText!: Phaser.GameObjects.Text;
+  private damageText!: Phaser.GameObjects.Text;
   private rewindText!: Phaser.GameObjects.Text;
   private debugOverlay!: Phaser.GameObjects.Container;
   private debugText!: Phaser.GameObjects.Text;
@@ -381,9 +382,15 @@ export class MainScene extends Phaser.Scene {
     // Black semi-transparent banner at the top
     const banner = this.add.rectangle(400, 40, 800, 80, 0x000000, 0.6);
     
-    this.powerText = this.add.text(20, 20, 'POWER: 100', {
-      fontSize: '24px',
+    this.powerText = this.add.text(20, 12, 'POWER: 100', {
+      fontSize: '20px',
       color: '#00ffcc',
+      fontStyle: 'bold'
+    });
+
+    this.damageText = this.add.text(20, 38, 'COLLATERAL DAMAGE: 0%', {
+      fontSize: '16px',
+      color: '#ff3333',
       fontStyle: 'bold'
     });
 
@@ -398,7 +405,7 @@ export class MainScene extends Phaser.Scene {
       color: '#aaaaaa'
     }).setOrigin(0.5);
 
-    this.hudContainer.add([banner, this.powerText, this.rewindText, helpText]);
+    this.hudContainer.add([banner, this.powerText, this.damageText, this.rewindText, helpText]);
 
     // Debug Overlay
     this.debugOverlay = this.add.container(0, 0).setScrollFactor(0).setVisible(false);
@@ -907,6 +914,12 @@ export class MainScene extends Phaser.Scene {
       powerStr = `FOCUSING: ${focusPower} (${pct}%)`;
     }
     this.powerText.setText(`POWER: ${powerStr}`);
+
+    // Compute collateral damage percentage of environment blocks
+    const totalBlocks = this.arena.objects.length;
+    const destroyedBlocks = this.arena.objects.filter(obj => obj.state === DestructionState.DESTROYED).length;
+    const damagePct = totalBlocks > 0 ? Math.round((destroyedBlocks / totalBlocks) * 100) : 0;
+    this.damageText.setText(`COLLATERAL DAMAGE: ${damagePct}%`);
 
     // Update debug text details
     if (this.debugVisible) {
