@@ -98,7 +98,7 @@ export class Enemy {
 
     // Bounds check
     if (this.x < 50) this.x = 50;
-    if (this.x > 3150) this.x = 3150;
+    if (this.x > 6350) this.x = 6350;
   }
 
   private applyGravityAndGround(dt: number, arena: TestArena): void {
