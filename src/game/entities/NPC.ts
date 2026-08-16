@@ -146,8 +146,8 @@ export class NPC {
         this.vx = this.fleeSpeed;
       }
     }
-    if (this.x > 3150) {
-      this.x = 3150;
+    if (this.x > 6350) {
+      this.x = 6350;
       if (this.currentStateName === 'fleeing') {
         this.targetX = 50;
         this.vx = -this.fleeSpeed;
