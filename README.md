@@ -80,13 +80,13 @@ pnpm typecheck
 ---
 
 ## Gameplay Controls
-* **Movement:** `A` / `D` or `Left` / `Right` Arrow keys.
-* **Jump:** `Space` or `W` or `Up` Arrow key.
-* **Adjust Power:**
-  * `Q` to **decrease** power (scales: 1, 10, 100, 1000, 10000).
-  * `E` to **increase** power.
-* **Punch/Interact:** `F` or mouse-click.
-* **Time Rewind:** Hold `R` to pause simulation and rewind backward in time.
+* **Run / Accelerate:** `A` / `D` or `Left` / `Right` Arrow keys. Holding down movement keys triggers **uncontrollable acceleration** momentum over time.
+* **Jump / Fly Up:** `Space` or `W` or `Up` Arrow key. Acts as a jump from the ground or upward flight thrust when in the air.
+* **Fly Down:** `S` or `Down` Arrow key (descend during flight).
+* **Focus Attack:** Hold `F` to focus and restrain Kail's infinite power:
+  * **Single Tap `F`**: Releases **INFINITY** power, vaporizing the environment.
+  * **Hold `F`**: suppresses the release power down to a precision touch (`1`).
+* **Time Rewind:** Hold `R` to pause simulation and step backward frame-by-frame.
 * **Developer Debug Overlay:** Press `TAB` to toggle coordinate, tick, state, and event logs.
 
 ---
