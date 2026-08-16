@@ -32,10 +32,10 @@ export class MainScene extends Phaser.Scene {
   private platformLabels: Phaser.GameObjects.Text[] = [];
   private groundLabels: Map<string, Phaser.GameObjects.Text> = new Map();
 
-  // Power Charge tracking
-  private isChargingPower: boolean = false;
-  private powerChargeTime: number = 0;
-  private chargeAuraGraphics!: Phaser.GameObjects.Graphics;
+  // Power Focus tracking
+  private isFocusingPower: boolean = false;
+  private powerFocusTime: number = 0;
+  private focusAuraGraphics!: Phaser.GameObjects.Graphics;
 
   // Controls
   private keys!: {
@@ -118,9 +118,9 @@ export class MainScene extends Phaser.Scene {
     // Create Debris Particle Group
     this.particlePool = this.add.group();
 
-    // Create Charge Aura Graphics overlay
-    this.chargeAuraGraphics = this.add.graphics();
-    this.chargeAuraGraphics.setVisible(false);
+    // Create Focus Aura Graphics overlay
+    this.focusAuraGraphics = this.add.graphics();
+    this.focusAuraGraphics.setVisible(false);
 
     // Create Arena Sprites
     this.createArenaObjects();
@@ -343,23 +343,23 @@ export class MainScene extends Phaser.Scene {
         this.rewindText.setColor('#ffcc00');
       }
 
-      // Power Charge tracking
+      // Power Focus tracking
       let activePowerScale = this.powerSystem.getPowerScale();
       if (this.keys && this.keys.F.isDown) {
-        if (!this.isChargingPower) {
-          this.isChargingPower = true;
-          this.powerChargeTime = 0;
-          this.chargeAuraGraphics.setVisible(true);
+        if (!this.isFocusingPower) {
+          this.isFocusingPower = true;
+          this.powerFocusTime = 0;
+          this.focusAuraGraphics.setVisible(true);
         }
-        this.powerChargeTime += dt;
-        activePowerScale = this.powerSystem.calculatePower(this.powerChargeTime);
-        this.updateChargeFeedback();
+        this.powerFocusTime += dt;
+        activePowerScale = this.powerSystem.calculatePower(this.powerFocusTime);
+        this.updateFocusFeedback();
       } else {
-        if (this.isChargingPower) {
-          this.isChargingPower = false;
-          this.chargeAuraGraphics.setVisible(false);
-          this.chargeAuraGraphics.clear();
-          const finalPower = this.powerSystem.calculatePower(this.powerChargeTime);
+        if (this.isFocusingPower) {
+          this.isFocusingPower = false;
+          this.focusAuraGraphics.setVisible(false);
+          this.focusAuraGraphics.clear();
+          const finalPower = this.powerSystem.calculatePower(this.powerFocusTime);
           this.performPlayerPunch(finalPower);
           
           // Restore any offset platforms/containers
@@ -735,10 +735,10 @@ export class MainScene extends Phaser.Scene {
     const scale = this.powerSystem.getPowerScale();
     let powerStr = scale === 999999 ? 'INFINITY' : scale.toString();
     
-    if (this.isChargingPower) {
-      const chargePower = this.powerSystem.calculatePower(this.powerChargeTime);
-      const pct = Math.min(100, Math.round((this.powerChargeTime / 2.0) * 100));
-      powerStr = `CHARGING: ${chargePower} (${pct}%)`;
+    if (this.isFocusingPower) {
+      const focusPower = this.powerSystem.calculatePower(this.powerFocusTime);
+      const pct = Math.min(100, Math.round((this.powerFocusTime / 2.0) * 100));
+      powerStr = `FOCUSING: ${focusPower} (${pct}%)`;
     }
     this.powerText.setText(`POWER: ${powerStr}`);
 
@@ -881,30 +881,30 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
-  private updateChargeFeedback(): void {
+  private updateFocusFeedback(): void {
     // 1. Aura drawing (shrinks from huge/chaotic to tight/focused)
-    this.chargeAuraGraphics.clear();
-    const radius = Math.max(15, 80 - Math.min(1.0, this.powerChargeTime / 2.0) * 65);
+    this.focusAuraGraphics.clear();
+    const radius = Math.max(15, 80 - Math.min(1.0, this.powerFocusTime / 2.0) * 65);
     
     // Draw neon cyan circle around the player
-    this.chargeAuraGraphics.lineStyle(2, 0x00ffff, 0.8);
-    this.chargeAuraGraphics.fillStyle(0x00ffff, 0.15 + Math.sin(this.time.now / 100) * 0.05);
-    this.chargeAuraGraphics.fillCircle(this.player.x, this.player.y, radius);
-    this.chargeAuraGraphics.strokeCircle(this.player.x, this.player.y, radius);
+    this.focusAuraGraphics.lineStyle(2, 0x00ffff, 0.8);
+    this.focusAuraGraphics.fillStyle(0x00ffff, 0.15 + Math.sin(this.time.now / 100) * 0.05);
+    this.focusAuraGraphics.fillCircle(this.player.x, this.player.y, radius);
+    this.focusAuraGraphics.strokeCircle(this.player.x, this.player.y, radius);
     
     // 2. Camera shake decreases as focus increases
-    const shakeAmount = Math.max(0, 0.02 - (this.powerChargeTime / 2.0) * 0.02);
+    const shakeAmount = Math.max(0, 0.02 - (this.powerFocusTime / 2.0) * 0.02);
     if (shakeAmount > 0.001) {
       this.cameras.main.shake(16, shakeAmount);
     }
     
     // 3. Audio hum pitch falls as power is restrained
     if (this.time.now % 100 < 20) {
-      this.soundEffect(Math.max(80, 600 - this.powerChargeTime * 250), 0.06);
+      this.soundEffect(Math.max(80, 600 - this.powerFocusTime * 250), 0.06);
     }
 
     // 4. Particle sparks reduce over focus duration
-    const particleCount = Math.max(0, Math.floor(6 - this.powerChargeTime * 3));
+    const particleCount = Math.max(0, Math.floor(6 - this.powerFocusTime * 3));
     for (let i = 0; i < particleCount; i++) {
       const px = this.player.x + (Math.random() - 0.5) * radius * 1.5;
       const py = this.player.y + (Math.random() - 0.5) * radius * 1.5;
@@ -921,7 +921,7 @@ export class MainScene extends Phaser.Scene {
       if (container) {
         const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, layout.x, layout.y);
         if (dist < radius * 1.8) {
-          const shakeVal = Math.max(0, 6 - this.powerChargeTime * 3) * (1 - dist / (radius * 1.8));
+          const shakeVal = Math.max(0, 6 - this.powerFocusTime * 3) * (1 - dist / (radius * 1.8));
           container.x = layout.x + (Math.random() - 0.5) * shakeVal;
           container.y = layout.y + (Math.random() - 0.5) * shakeVal;
         } else {
