@@ -59,6 +59,7 @@ export class MainScene extends Phaser.Scene {
     UP: Phaser.Input.Keyboard.Key;
     DOWN: Phaser.Input.Keyboard.Key;
     ENTER: Phaser.Input.Keyboard.Key;
+    ESC: Phaser.Input.Keyboard.Key;
   };
 
   // HUD & UI Elements
@@ -203,9 +204,10 @@ export class MainScene extends Phaser.Scene {
         RIGHT: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT),
         UP: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.UP),
         DOWN: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN),
-        ENTER: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER)
+        ENTER: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER),
+        ESC: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC)
       };
-
+ 
       // Set up simple keydown events for instant toggles
       this.keys.Q.on('down', () => {
         this.powerSystem.decreasePower();
@@ -222,6 +224,15 @@ export class MainScene extends Phaser.Scene {
       this.keys.TAB.on('down', () => {
         this.debugVisible = !this.debugVisible;
         this.debugOverlay.setVisible(this.debugVisible);
+      });
+      this.keys.ESC.on('down', () => {
+        this.scene.start('MenuScene');
+      });
+      this.keys.ENTER.on('down', () => {
+        // Only restart if not currently in a dialogue flow to prevent conflict
+        if (!this.isDialogueActive) {
+          this.scene.start('MainScene', this.levelConfig);
+        }
       });
     }
 
@@ -434,8 +445,8 @@ export class MainScene extends Phaser.Scene {
       fontStyle: 'bold'
     }).setOrigin(1, 0);
 
-    const helpText = this.add.text(400, 60, 'A/D: Move | SPACE: Jump | Q/E: Power | F/Click: Punch | Hold R: Rewind | TAB: Debug', {
-      fontSize: '12px',
+    const helpText = this.add.text(400, 60, 'A/D: Move | SPACE: Jump | Q/E: Power | F: Punch | Hold R: Rewind | TAB: Debug | ESC: Menu | ENTER: Restart', {
+      fontSize: '11px',
       color: '#aaaaaa'
     }).setOrigin(0.5);
 
