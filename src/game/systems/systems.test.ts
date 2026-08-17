@@ -326,5 +326,11 @@ describe('IMMORTAL Core Systems', () => {
       expect(player.y).toBe(-3532); // Y floor landing height (-3500 floor - 32 half height)
       expect(player.vy).toBe(0); // landed
     });
+
+    it('should load initial destructible crates in TestArena', () => {
+      const arena = new TestArena();
+      const crates = arena.objects.filter(obj => obj.id.startsWith('crate_'));
+      expect(crates.length).toBeGreaterThanOrEqual(4);
+    });
   });
 });

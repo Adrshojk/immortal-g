@@ -58,6 +58,8 @@ export class MainScene extends Phaser.Scene {
     RIGHT: Phaser.Input.Keyboard.Key;
     UP: Phaser.Input.Keyboard.Key;
     DOWN: Phaser.Input.Keyboard.Key;
+    ENTER: Phaser.Input.Keyboard.Key;
+    ESC: Phaser.Input.Keyboard.Key;
   };
 
   // HUD & UI Elements
@@ -80,11 +82,26 @@ export class MainScene extends Phaser.Scene {
   private isDialogueActive: boolean = false;
   private interiorOverlayGraphics!: Phaser.GameObjects.Graphics;
 
+  // Level Config & Scenario State
+  private levelConfig: any = {};
+  private isLevelCompleted: boolean = false;
+  private isLevelFailed: boolean = false;
+  private endOverlayContainer!: Phaser.GameObjects.Container;
+  private endTitleText!: Phaser.GameObjects.Text;
+  private endSubText!: Phaser.GameObjects.Text;
+  private objectiveText!: Phaser.GameObjects.Text;
+
   // Event Log for Debug overlay
   private eventLog: string[] = [];
 
   constructor() {
     super('MainScene');
+  }
+
+  public init(data: any): void {
+    this.levelConfig = data || {};
+    this.isLevelCompleted = false;
+    this.isLevelFailed = false;
   }
 
   public preload(): void {
@@ -157,14 +174,14 @@ export class MainScene extends Phaser.Scene {
     // Player ground shadow (rendered before entities so it's behind them)
     this.playerShadow = this.add.ellipse(this.player.x, 498, 40, 10, 0x000000, 0.35).setOrigin(0.5);
 
-    // Create Entity Sprites
-    this.playerSprite = this.add.sprite(this.player.x, this.player.y, 'kail_transparent', 'kail_idle').setOrigin(0.5);
+    // Create Entity Sprites (depth 10 to render above background graphics)
+    this.playerSprite = this.add.sprite(this.player.x, this.player.y, 'kail_transparent', 'kail_idle').setOrigin(0.5).setDepth(10);
     this.playerSprite.setScale(64 / 153); // Proportional scale based on idle frame height (153px down to 64px)
-
-    this.enemySprite = this.add.sprite(this.enemy.x, this.enemy.y, 'enemy_sprite').setOrigin(0.5);
+ 
+    this.enemySprite = this.add.sprite(this.enemy.x, this.enemy.y, 'enemy_sprite').setOrigin(0.5).setDepth(10);
     this.enemySprite.setDisplaySize(this.enemy.width, this.enemy.height);
-
-    this.npcSprite = this.add.rectangle(this.npc.x, this.npc.y, this.npc.width, this.npc.height, 0xffcc00).setOrigin(0.5);
+ 
+    this.npcSprite = this.add.rectangle(this.npc.x, this.npc.y, this.npc.width, this.npc.height, 0xffcc00).setOrigin(0.5).setDepth(10);
 
     // Camera configuration — smooth follow with gentle lerp
     this.cameras.main.startFollow(this.playerSprite, true, 0.08, 0.06);
@@ -186,9 +203,11 @@ export class MainScene extends Phaser.Scene {
         LEFT: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.LEFT),
         RIGHT: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT),
         UP: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.UP),
-        DOWN: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN)
+        DOWN: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN),
+        ENTER: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER),
+        ESC: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC)
       };
-
+ 
       // Set up simple keydown events for instant toggles
       this.keys.Q.on('down', () => {
         this.powerSystem.decreasePower();
@@ -205,6 +224,15 @@ export class MainScene extends Phaser.Scene {
       this.keys.TAB.on('down', () => {
         this.debugVisible = !this.debugVisible;
         this.debugOverlay.setVisible(this.debugVisible);
+      });
+      this.keys.ESC.on('down', () => {
+        this.scene.start('MenuScene');
+      });
+      this.keys.ENTER.on('down', () => {
+        // Only restart if not currently in a dialogue flow to prevent conflict
+        if (!this.isDialogueActive) {
+          this.scene.start('MainScene', this.levelConfig);
+        }
       });
     }
 
@@ -417,12 +445,25 @@ export class MainScene extends Phaser.Scene {
       fontStyle: 'bold'
     }).setOrigin(1, 0);
 
-    const helpText = this.add.text(400, 60, 'A/D: Move | SPACE: Jump | Q/E: Power | F/Click: Punch | Hold R: Rewind | TAB: Debug', {
-      fontSize: '12px',
+    const helpText = this.add.text(400, 60, 'A/D: Move | SPACE: Jump | Q/E: Power | F: Punch | Hold R: Rewind | TAB: Debug | ESC: Menu | ENTER: Restart', {
+      fontSize: '11px',
       color: '#aaaaaa'
     }).setOrigin(0.5);
 
-    this.hudContainer.add([banner, this.powerText, this.damageText, this.rewindText, helpText]);
+    const objTextMap: Record<number, string> = {
+      1: 'OBJECTIVE: Destroy all 4 crates. Limit collateral < 30%. Do not break ground.',
+      2: 'OBJECTIVE: Rescue the hostage (Go inside house & Talk to NPC). Limit collateral < 10%.',
+      3: 'OBJECTIVE: DEMOLITION DERBY! Reach 100% world collateral damage.'
+    };
+    const activeLevel = this.levelConfig.level || 1;
+    this.objectiveText = this.add.text(400, 20, objTextMap[activeLevel] || 'OBJECTIVE: Free Play Mode', {
+      fontSize: '11px',
+      color: '#ffcc00',
+      fontStyle: 'bold',
+      fontFamily: 'monospace'
+    }).setOrigin(0.5);
+
+    this.hudContainer.add([banner, this.powerText, this.damageText, this.rewindText, this.objectiveText, helpText]);
 
     // Debug Overlay
     this.debugOverlay = this.add.container(0, 0).setScrollFactor(0).setVisible(false);
@@ -464,8 +505,40 @@ export class MainScene extends Phaser.Scene {
     }).setOrigin(1, 1);
     this.dialogueContainer.add([dialogBg, speakerLabel, this.dialogueText, promptText]);
 
-    // Graphics object for drawing interior walls and cozy background elements
-    this.interiorOverlayGraphics = this.add.graphics().setDepth(2);
+    // Graphics object for drawing interior walls and cozy background elements (depth 1 to render behind sprites)
+    this.interiorOverlayGraphics = this.add.graphics().setDepth(1);
+
+    // Initialize Level End overlays (success / failure cards)
+    this.endOverlayContainer = this.add.container(0, 0).setScrollFactor(0).setVisible(false).setDepth(400);
+    const endBg = this.add.rectangle(400, 300, 800, 600, 0x000000, 0.85);
+    this.endTitleText = this.add.text(400, 220, 'MISSION ACCOMPLISHED', {
+      fontSize: '40px',
+      color: '#00ffcc',
+      fontStyle: 'bold',
+      fontFamily: 'monospace'
+    }).setOrigin(0.5);
+    
+    this.endSubText = this.add.text(400, 300, 'Press ENTER to return to Menu', {
+      fontSize: '18px',
+      color: '#ffffff',
+      fontFamily: 'monospace',
+      align: 'center'
+    }).setOrigin(0.5);
+    
+    const returnText = this.add.text(400, 420, 'Click here or Press ENTER to return to Menu', {
+      fontSize: '14px',
+      color: '#ff3366',
+      fontStyle: 'bold',
+      fontFamily: 'monospace',
+      backgroundColor: '#1f1f3a',
+      padding: { x: 12, y: 8 }
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    
+    returnText.on('pointerdown', () => {
+      this.scene.start('MenuScene');
+    });
+
+    this.endOverlayContainer.add([endBg, this.endTitleText, this.endSubText, returnText]);
   }
 
   private createRewindOverlay(): void {
@@ -491,6 +564,16 @@ export class MainScene extends Phaser.Scene {
 
   public update(_time: number, delta: number): void {
     const dt = delta / 1000;
+
+    // Check level win/fail rules
+    this.checkLevelConditions();
+
+    if (this.isLevelCompleted || this.isLevelFailed) {
+      this.drawInteriorGraphics();
+      this.syncDisplay();
+      this.updateHUD();
+      return;
+    }
 
     // Read Key States
     const left = !this.isDialogueActive && this.keys && (this.keys.A.isDown || this.keys.LEFT.isDown);
@@ -1364,5 +1447,81 @@ export class MainScene extends Phaser.Scene {
     this.interiorOverlayGraphics.fillRect(1950, -3470, 60, 8); // Table top
     this.interiorOverlayGraphics.fillRect(1960, -3462, 6, 12);  // Legs
     this.interiorOverlayGraphics.fillRect(1994, -3462, 6, 12);
+  }
+
+  private checkLevelConditions(): void {
+    if (this.isLevelCompleted || this.isLevelFailed) {
+      // Allow returning to menu via Enter key
+      if (this.keys && this.keys.ENTER && this.keys.ENTER.isDown) {
+        this.scene.start('MenuScene');
+      }
+      return;
+    }
+
+    const total = this.arena.objects.length;
+    const destroyed = this.arena.objects.filter(obj => obj.state === DestructionState.DESTROYED).length;
+    const damagePct = total > 0 ? Math.round((destroyed / total) * 100) : 0;
+
+    // Fail conditions
+    if (this.levelConfig.maxCollateral !== undefined && damagePct > this.levelConfig.maxCollateral) {
+      this.triggerLevelEnd(false, `Collateral Damage (${damagePct}%) exceeded limit of ${this.levelConfig.maxCollateral}%!`);
+      return;
+    }
+
+    if (this.levelConfig.groundBreakFails) {
+      // Check if any of the ground segments is destroyed
+      const isGroundBroken = this.arena.objects.some(obj => obj.id.startsWith('ground_') && obj.state === DestructionState.DESTROYED);
+      if (isGroundBroken) {
+        this.triggerLevelEnd(false, 'The ground floor segments was shattered!');
+        return;
+      }
+    }
+
+    if (this.levelConfig.npcDamageFails) {
+      // If NPC is frightened or hit, fail hostage rescue
+      if (this.npc.fearLevel >= 100) {
+        this.triggerLevelEnd(false, 'The hostage NPC was frightened and ran away!');
+        return;
+      }
+    }
+
+    // Win conditions
+    if (this.levelConfig.targetCratesCount) {
+      // Count remaining/destroyed crates (level 1)
+      const destroyedCrates = this.arena.objects.filter(obj => obj.id.startsWith('crate_') && obj.state === DestructionState.DESTROYED).length;
+      if (destroyedCrates >= this.levelConfig.targetCratesCount) {
+        this.triggerLevelEnd(true, 'Successfully destroyed all designated path crates!');
+      }
+    }
+
+    if (this.levelConfig.rescueNPCsCount) {
+      // NPC is rescued if we interact with them (inside dialogue active/talked)
+      // For tutorial simplicity: if we talked to the NPC and completed dialog, we rescue them!
+      if (this.currentLocation === 'interior' && this.isDialogueActive) {
+        this.triggerLevelEnd(true, 'Successfully rescued the NPC hostages from the fortress!');
+      }
+    }
+
+    if (this.levelConfig.winAt100Percent) {
+      if (damagePct >= 100) {
+        this.triggerLevelEnd(true, 'Total Annihilation! 100% fortress destroyed!');
+      }
+    }
+  }
+
+  private triggerLevelEnd(success: boolean, message: string): void {
+    if (success) {
+      this.isLevelCompleted = true;
+      this.endTitleText.setText('MISSION ACCOMPLISHED');
+      this.endTitleText.setColor('#00ffcc');
+      this.soundEffect(600, 0.3);
+    } else {
+      this.isLevelFailed = true;
+      this.endTitleText.setText('MISSION FAILED');
+      this.endTitleText.setColor('#ff3333');
+      this.soundEffect(120, 0.3);
+    }
+    this.endSubText.setText(message + '\n\nPress ENTER to return to Scenario Selection');
+    this.endOverlayContainer.setVisible(true);
   }
 }
